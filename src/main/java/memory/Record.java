@@ -11,7 +11,7 @@ public class Record {
         this.first = length;
         this.second = width;
         this.third = height;
-        this.key = getArea();
+        this.key = length * width;
     }
 
     public int getFirst() {
@@ -30,12 +30,8 @@ public class Record {
         return key;
     }
 
-    public int getArea() {
-        return 2 * (first * second + second * third + first * third);
-    }
-
     @Override
     public String toString() {
-        return first + " " + second + " " + third + " Area: " + getArea();
+        return first + " " + second + " " + third + " Key: " + key;
     }
 }
