@@ -7,7 +7,7 @@ import java.util.Scanner;
 
 public class KeyboardDataGenerator implements DataGenerator {
     @Override
-    public void generateData(String filename, int n) throws IOException {
+    public void generateData(String filename, int n, UniqueKeyGenerator generator) throws IOException {
         Scanner scanner = new Scanner(System.in);
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
             System.out.print("Enter 3 dimensions separated by spaces, each set in separate lines:");
@@ -18,6 +18,8 @@ public class KeyboardDataGenerator implements DataGenerator {
                 writer.write(" " + number);
                 number = scanner.nextInt();
                 writer.write(" " + number);
+                int key = generator.generateUniqueKey();
+                writer.write(" " + key);
                 writer.newLine();
             }
         }

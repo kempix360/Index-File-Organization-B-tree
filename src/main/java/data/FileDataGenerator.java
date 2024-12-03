@@ -14,7 +14,7 @@ public class FileDataGenerator implements DataGenerator {
     }
 
     @Override
-    public void generateData(String filename, int n) throws IOException {
+    public void generateData(String filename, int n, UniqueKeyGenerator generator) throws IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(sourceFile));
              BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
             String line;

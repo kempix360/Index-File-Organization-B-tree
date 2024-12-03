@@ -1,269 +1,253 @@
+import memory.DiskFile;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import memory.PageBtreeFile;
 
 class BTreeNode {
-    int t; // Minimum degree (defines the range for number of keys)
-    List<Integer> keys;
-    List<BTreeNode> children;
-    boolean isLeaf;
+    private final int t; // Minimum degree (defines the range for number of keys)
+    private int nodeID;
+    private int parentID;
+    private List<Integer> keys; // Keys in this node
+    private List<Integer> locations; // Corresponding data locations
+    private List<BTreeNode> children; // Children of this node
+    private BTree tree;
 
-    public BTreeNode(int t, boolean isLeaf) {
+    public BTreeNode(int t, BTree tree) {
         this.t = t;
-        this.isLeaf = isLeaf;
+        this.nodeID = -1; // assigned later
+        this.parentID = -1;
         this.keys = new ArrayList<>();
+        this.locations = new ArrayList<>();
         this.children = new ArrayList<>();
+        this.tree = tree;
     }
 
-    public void insertNonFull(int k) {
+    public void assignNodeID() {
+        this.nodeID = tree.getNextNodeID();
+    }
+
+    public void insertNonFull(int key, int location) {
         int i = keys.size() - 1;
-        if (isLeaf) {
+
+        // If the node is a leaf, insert the key directly
+        if (children.isEmpty()) {
             keys.add(0);
-            while (i >= 0 && keys.get(i) > k) {
+            locations.add(0);
+
+            while (i >= 0 && keys.get(i) > key) {
                 keys.set(i + 1, keys.get(i));
+                locations.set(i + 1, locations.get(i));
                 i--;
             }
-            keys.set(i + 1, k);
+            keys.set(i + 1, key);
+            locations.set(i + 1, location);
         } else {
-            while (i >= 0 && keys.get(i) > k) {
+            // Find the child that will have the new key
+            while (i >= 0 && keys.get(i) > key) {
                 i--;
             }
             i++;
+
+            // If the child is full, split it
             if (children.get(i).keys.size() == 2 * t - 1) {
-                splitChild(i, children.get(i));
-                if (keys.get(i) < k) {
+                splitChild(i);
+                if (keys.get(i) < key) {
                     i++;
                 }
             }
-            children.get(i).insertNonFull(k);
+            children.get(i).insertNonFull(key, location);
         }
     }
 
-    public void splitChild(int i, BTreeNode y) {
-        BTreeNode z = new BTreeNode(y.t, y.isLeaf);
+    public void splitChild(int i) {
+        BTreeNode y = children.get(i);
+        BTreeNode z = new BTreeNode(y.t, tree);
+        z.assignNodeID();
+
+        // Move t-1 keys and locations to the new node
         for (int j = 0; j < t - 1; j++) {
             z.keys.add(y.keys.remove(t));
+            z.locations.add(y.locations.remove(t));
         }
-        if (!y.isLeaf) {
+
+        // If not a leaf, move t children to the new node
+        if (!y.children.isEmpty()) {
             for (int j = 0; j < t; j++) {
                 z.children.add(y.children.remove(t));
             }
         }
-        children.add(i + 1, z);
+
+        // Insert the middle key into this node
         keys.add(i, y.keys.remove(t - 1));
+        locations.add(i, y.locations.remove(t - 1));
+        children.add(i + 1, z);
     }
 
     public void traverse() {
         int i;
         for (i = 0; i < keys.size(); i++) {
-            if (!isLeaf) {
+            if (!children.isEmpty()) {
                 children.get(i).traverse();
             }
-            System.out.print(keys.get(i) + " ");
+            System.out.println("Key: " + keys.get(i) + ", Location: " + locations.get(i));
         }
-        if (!isLeaf) {
+
+        if (!children.isEmpty()) {
             children.get(i).traverse();
         }
     }
 
-    public BTreeNode search(int k) {
+    public Integer search(int key) {
         int i = 0;
-        while (i < keys.size() && k > keys.get(i)) {
+
+        // Find the key or determine the child to search
+        while (i < keys.size() && key > keys.get(i)) {
             i++;
         }
-        if (i < keys.size() && keys.get(i) == k) {
-            return this;
+
+        // If the key is found, return its location
+        if (i < keys.size() && keys.get(i) == key) {
+            return locations.get(i);
         }
-        if (isLeaf) {
+
+        // If this is a leaf, the key isn't present
+        if (children.isEmpty()) {
             return null;
         }
-        return children.get(i).search(k);
+
+        // Otherwise, search in the appropriate child
+        return children.get(i).search(key);
     }
 
-    public void deleteFromNode(int k) {
-        int idx = findKey(k);
-
-        if (idx < keys.size() && keys.get(idx) == k) {
-            // Key is in this node
-            if (isLeaf) {
-                // Case 1: Key is in a leaf node
-                keys.remove(idx);
-            } else {
-                // Case 2: Key is in an internal node
-                deleteFromInternalNode(idx);
-            }
-        } else {
-            // Key is not in this node
-            if (isLeaf) {
-                System.out.println("The key " + k + " is not present in the tree.");
-                return;
-            }
-
-            boolean lastChild = (idx == keys.size());
-            if (children.get(idx).keys.size() < t) {
-                fill(idx);
-            }
-
-            if (lastChild && idx > keys.size()) {
-                children.get(idx - 1).deleteFromNode(k);
-            } else {
-                children.get(idx).deleteFromNode(k);
-            }
-        }
+    public int getNodeID() {
+        return nodeID;
     }
 
-    private void deleteFromInternalNode(int idx) {
-        int k = keys.get(idx);
-
-        if (children.get(idx).keys.size() >= t) {
-            // Case 2a: Predecessor is large enough
-            int pred = getPredecessor(idx);
-            keys.set(idx, pred);
-            children.get(idx).deleteFromNode(pred);
-        } else if (children.get(idx + 1).keys.size() >= t) {
-            // Case 2b: Successor is large enough
-            int succ = getSuccessor(idx);
-            keys.set(idx, succ);
-            children.get(idx + 1).deleteFromNode(succ);
-        } else {
-            // Case 2c: Merge children
-            merge(idx);
-            children.get(idx).deleteFromNode(k);
-        }
+    public void setNodeID(int nodeID) {
+        this.nodeID = nodeID;
     }
 
-    private int getPredecessor(int idx) {
-        BTreeNode current = children.get(idx);
-        while (!current.isLeaf) {
-            current = current.children.get(current.keys.size());
-        }
-        return current.keys.get(current.keys.size() - 1);
+    public int getParentID() {
+        return parentID;
     }
 
-    private int getSuccessor(int idx) {
-        BTreeNode current = children.get(idx + 1);
-        while (!current.isLeaf) {
-            current = current.children.get(0);
-        }
-        return current.keys.get(0);
+    public void setParentID(int parentID) {
+        this.parentID = parentID;
     }
 
-    private void fill(int idx) {
-        if (idx != 0 && children.get(idx - 1).keys.size() >= t) {
-            borrowFromPrev(idx);
-        } else if (idx != keys.size() && children.get(idx + 1).keys.size() >= t) {
-            borrowFromNext(idx);
-        } else {
-            if (idx != keys.size()) {
-                merge(idx);
-            } else {
-                merge(idx - 1);
-            }
-        }
+    public List<Integer> getKeys() {
+        return keys;
     }
 
-    private void borrowFromPrev(int idx) {
-        BTreeNode child = children.get(idx);
-        BTreeNode sibling = children.get(idx - 1);
-
-        child.keys.add(0, keys.get(idx - 1));
-        if (!child.isLeaf) {
-            child.children.add(0, sibling.children.remove(sibling.keys.size()));
-        }
-        keys.set(idx - 1, sibling.keys.remove(sibling.keys.size() - 1));
+    public List<Integer> getLocations() {
+        return locations;
     }
 
-    private void borrowFromNext(int idx) {
-        BTreeNode child = children.get(idx);
-        BTreeNode sibling = children.get(idx + 1);
-
-        child.keys.add(keys.get(idx));
-        if (!child.isLeaf) {
-            child.children.add(sibling.children.remove(0));
-        }
-        keys.set(idx, sibling.keys.remove(0));
+    public List<BTreeNode> getChildren() {
+        return children;
     }
 
-    private void merge(int idx) {
-        BTreeNode child = children.get(idx);
-        BTreeNode sibling = children.get(idx + 1);
-
-        child.keys.add(keys.remove(idx));
-        child.keys.addAll(sibling.keys);
-        if (!child.isLeaf) {
-            child.children.addAll(sibling.children);
+    public void serializeNode(BufferedWriter writer) throws IOException {
+        List<Integer> childrenIds = new ArrayList<>();
+        for (BTreeNode child : children) {
+            childrenIds.add(child.nodeID);
         }
-        children.remove(idx + 1);
-    }
 
-    private int findKey(int k) {
-        int idx = 0;
-        while (idx < keys.size() && keys.get(idx) < k) {
-            idx++;
+        PageBtreeFile page = new PageBtreeFile(
+                nodeID,
+                parentID,
+                new ArrayList<>(keys),
+                new ArrayList<>(locations),
+                childrenIds
+        );
+
+        writer.write(page.serialize());
+        writer.newLine();
+
+        // Recursively serialize all children
+        for (BTreeNode child : children) {
+            child.serializeNode(writer);
         }
-        return idx;
     }
 }
-
 
 public class BTree {
     private BTreeNode root;
     private final int t;
+    private final int maxSizeOfKeys;
+    private int nodeIDCounter = 0;
 
-    private BTree(int t) {
+
+    public BTree(int t) {
         this.root = null;
         this.t = t;
+        this.maxSizeOfKeys = 2 * t - 1;
     }
 
-    private void traverse() {
+    public int getRootID() {
+        return root.getNodeID();
+    }
+
+    public int getNextNodeID() {
+        return nodeIDCounter++;
+    }
+
+    public void insert(int key, int location) {
+        if (root == null) {
+            root = new BTreeNode(t, this);
+            root.getKeys().add(key);
+            root.getLocations().add(location);
+            root.assignNodeID();
+        } else {
+            if (root.getKeys().size() == maxSizeOfKeys) {
+                BTreeNode newRoot = new BTreeNode(t, this);
+                newRoot.assignNodeID();
+                newRoot.getChildren().add(root);
+                root.setParentID(newRoot.getNodeID());
+                newRoot.splitChild(0);
+                int i = 0;
+                if (newRoot.getKeys().get(0) < key) {
+                    i++;
+                }
+                newRoot.getChildren().get(i).insertNonFull(key, location);
+                root = newRoot;
+            } else {
+                root.insertNonFull(key, location);
+            }
+        }
+    }
+
+    public Integer search(int key) {
+        return root == null ? null : root.search(key);
+    }
+
+    public void traverse() {
         if (root != null) {
             root.traverse();
         }
     }
 
-    private BTreeNode search(int k) {
-        return root == null ? null : root.search(k);
-    }
+    public void serialize(DiskFile file) {
+        String filename = file.getFilename();
 
-    private void insert(int k) {
-        // 1. case
-        if (root == null) {
-            root = new BTreeNode(t, true);
-            root.keys.add(k);
-        } else {
-            // 2. case
-            if (root.keys.size() == 2 * t - 1) {
-                BTreeNode s = new BTreeNode(t, false);
-                s.children.add(root);
-                s.splitChild(0, root);
-                int i = 0;
-                if (s.keys.get(0) < k) {
-                    i++;
-                }
-                s.children.get(i).insertNonFull(k);
-                root = s;
-            } // 3. case
-            else {
-                root.insertNonFull(k);
-            }
-        }
-    }
-
-    private void delete(int k) {
         if (root == null) {
             System.out.println("The tree is empty.");
             return;
         }
 
-        root.deleteFromNode(k);
-
-        if (root.keys.size() == 0) {
-            // Shrink the height of the tree
-            root = root.isLeaf ? null : root.children.get(0);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
+            root.serializeNode(writer);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    private void reorganize() {
-        System.out.println("Reorganizing the tree...");
 
-    }
 }
