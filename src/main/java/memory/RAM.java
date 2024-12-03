@@ -1,21 +1,31 @@
 package memory;
 
+import Btree.BTree;
+import Btree.BTreeNode;
+
 import java.io.*;
-import java.util.Scanner;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 public class RAM {
 
-    private int totalReadOperations;
-    private int totalWriteOperations;
+    private int readOperationsData;
+    private int writeOperationsData;
+    private int readOperationsBtree;
+    private int writeOperationsBtree;
 
     public RAM() {
-        totalReadOperations = 0;
-        totalWriteOperations = 0;
+        readOperationsData = 0;
+        writeOperationsData = 0;
+        readOperationsBtree = 0;
+        writeOperationsBtree = 0;
     }
 
-    public BlockOfMemory loadToBufferFromData(DiskFile file, int blockNumber) {
+    // DATA
+    // --------------------------------------------------------------------------------------------
+
+    public BlockOfMemory loadBlockFromData(DiskFile file, int blockNumber) {
         try (BufferedReader reader = new BufferedReader(new FileReader(file.getFilename()))) {
             int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
             int recordsToSkip = blockNumber * b;
@@ -51,7 +61,7 @@ public class RAM {
             }
 
             if (bufferIndex > 0) {
-                totalReadOperations++;
+                readOperationsData++;
                 return new BlockOfMemory(buffer, bufferIndex);
             } else {
                 return null;
@@ -62,72 +72,7 @@ public class RAM {
         }
     }
 
-
-    public PageBtreeFile loadNodeFromTree(DiskFile file, int pageNumber) {
-        String filename = file.getFilename();
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
-            String line = null;
-            int currentLine = 0;
-
-            // Read the specific line
-            while ((line = reader.readLine()) != null) {
-                if (currentLine == pageNumber) {
-                    break;
-                }
-                currentLine++;
-            }
-
-            if (line == null) {
-                throw new IOException("Line " + pageNumber + " not found in file.");
-            }
-
-            return deserializeNode(line);
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private static PageBtreeFile deserializeNode(String line) {
-        String[] parts = line.split("\\|");
-
-        // Parse required fields
-        int pageID = Integer.parseInt(parts[0].split("=")[1].trim());
-        int parentPageID = Integer.parseInt(parts[1].split("=")[1].trim());
-        int numKeys = Integer.parseInt(parts[2].split("=")[1].trim());
-        int numChildren = Integer.parseInt(parts[3].split("=")[1].trim());
-
-        // Parse keys
-        List<Integer> keys = new ArrayList<>();
-        if (!parts[4].split("=")[1].trim().equals("[]")) {
-            for (String key : parts[4].split("=")[1].trim().replace("[", "").replace("]", "").split(", ")) {
-                keys.add(Integer.parseInt(key));
-            }
-        }
-
-        // Parse addresses
-        List<Integer> addresses = new ArrayList<>();
-        if (!parts[5].split("=")[1].trim().equals("[]")) {
-            for (String address : parts[5].split("=")[1].trim().replace("[", "").replace("]", "").split(", ")) {
-                addresses.add(Integer.parseInt(address));
-            }
-        }
-
-        // Parse children
-        List<Integer> children = new ArrayList<>();
-        if (!parts[6].split("=")[1].trim().equals("[]")) {
-            for (String child : parts[6].split("=")[1].trim().replace("[", "").replace("]", "").split(", ")) {
-                children.add(Integer.parseInt(child));
-            }
-        }
-
-        return new PageBtreeFile(pageID, parentPageID, keys, addresses, children);
-    }
-
-
-    public void writeToDataFile(DiskFile file, BlockOfMemory _blockOfMemory) {
+    public void writeDataBlockToDisk(DiskFile file, BlockOfMemory _blockOfMemory) {
         if (_blockOfMemory == null) {
             return;
         }
@@ -150,15 +95,10 @@ public class RAM {
                     if ((i / 4 + 1) % 3 == 0) {
                         outputStream.writeBytes("\n");
                     }
-
-                    data[i] = 0;
-                    data[i + 1] = 0;
-                    data[i + 2] = 0;
-                    data[i + 3] = 0;
                 }
             }
 
-            totalWriteOperations++;
+            writeOperationsData++;
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -185,7 +125,7 @@ public class RAM {
 
         for (int i = index; i < index + recordSize; i += 4) {
 
-            if (i + 4 < size) {
+            if (i + 4 <= size) {
                 int number = ((data[i] & 0xFF) << 24) |
                         ((data[i + 1] & 0xFF) << 16) |
                         ((data[i + 2] & 0xFF) << 8) |
@@ -231,12 +171,190 @@ public class RAM {
 
     }
 
-    public int getTotalReadOperations() {
-        return totalReadOperations;
+    // BTREE
+    // --------------------------------------------------------------------------------------------
+
+    public BlockOfMemory loadBlockFromBTree(DiskFile file) {
+        String filename = file.getFilename();
+
+        try (Scanner scanner = new Scanner(new File(filename))) {
+            byte[] buffer = new byte[BlockOfMemory.BUFFER_SIZE];
+            int bufferIndex = 0;
+
+            while (scanner.hasNext()) {
+                String token = scanner.next();
+
+                if (token.endsWith("=") || token.endsWith("[") || token.equals("]")) {
+                    continue;
+                }
+
+                try {
+                    int number = Integer.parseInt(token);
+
+                    buffer[bufferIndex] = (byte) (number >> 24);
+                    buffer[bufferIndex + 1] = (byte) (number >> 16);
+                    buffer[bufferIndex + 2] = (byte) (number >> 8);
+                    buffer[bufferIndex + 3] = (byte) number;
+                    bufferIndex += 4;
+
+                    if (bufferIndex >= BlockOfMemory.BUFFER_SIZE) {
+                        break;
+                    }
+                } catch (NumberFormatException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            readOperationsBtree++;
+            return new BlockOfMemory(buffer, bufferIndex);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
-    public int getTotalWriteOperations() {
-        return totalWriteOperations;
+
+
+    public void writeBtreeBlockToDisk(DiskFile file, BlockOfMemory block) {
+        if (block == null) {
+            return;
+        }
+
+        try (DataOutputStream outputStream = new DataOutputStream(file.getFileOutputStream())) {
+            StringBuilder sb = new StringBuilder();
+            block.setIndex(0);
+
+            int nodeID = readIntFromBuffer(block);
+            sb.append("nodeID= ").append(nodeID).append(" ");
+            int parentID = readIntFromBuffer(block);
+            sb.append("parentID= ").append(parentID).append(" ");
+            int keysSize = readIntFromBuffer(block);
+            sb.append("keysSize= ").append(keysSize).append(" ");
+            int childrenSize = readIntFromBuffer(block);
+            sb.append("childrenSize= ").append(childrenSize).append(" ");
+
+            sb.append("keys=[ ");
+            for (int i = 0; i < keysSize; i++) {
+                int key = readIntFromBuffer(block);
+                sb.append(key).append(" ");
+            }
+
+            sb.append("] locations=[ ");
+            for (int i = 0; i < keysSize; i++) {
+                int location = readIntFromBuffer(block);
+                sb.append(location).append(" ");
+            }
+
+            sb.append("] children=[ ");
+            for (int i = 0; i < childrenSize; i++) {
+                int child = readIntFromBuffer(block);
+                sb.append(child).append(" ");
+            }
+            sb.append("]");
+
+            outputStream.writeBytes(sb.toString());
+            writeOperationsBtree++;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public BTreeNode readNodeFromBlock(BlockOfMemory block) {
+        if (block == null) {
+            return null;
+        }
+
+        block.setIndex(0);
+
+        int nodeID = readIntFromBuffer(block);
+        int parentID = readIntFromBuffer(block);
+        int keysSize = readIntFromBuffer(block);
+        int childrenSize = readIntFromBuffer(block);
+
+        List<Integer> keys = new ArrayList<>();
+        for (int i = 0; i < keysSize; i++) {
+            keys.add(readIntFromBuffer(block));
+        }
+
+        List<Integer> locations = new ArrayList<>();
+        for (int i = 0; i < keysSize; i++) {
+            locations.add(readIntFromBuffer(block));
+        }
+
+        List<Integer> children = new ArrayList<>();
+        for (int i = 0; i < childrenSize; i++) {
+            children.add(readIntFromBuffer(block));
+        }
+
+        return new BTreeNode(new BTree(1), nodeID, parentID, keys, locations, children);
+    }
+
+    public void writeNodeToBlock(BlockOfMemory block, BTreeNode node) {
+        if (block == null || node == null) {
+            return;
+        }
+
+        writeIntToBuffer(block, node.getNodeID());
+        writeIntToBuffer(block, node.getParentID());
+        writeIntToBuffer(block, node.getKeys().size());
+        writeIntToBuffer(block, node.getChildren().size());
+
+        for (int key : node.getKeys()) {
+            writeIntToBuffer(block, key);
+        }
+
+        for (int location : node.getLocations()) {
+            writeIntToBuffer(block, location);
+        }
+
+        for (BTreeNode child : node.getChildren()) {
+            writeIntToBuffer(block, child.getNodeID());
+        }
+    }
+
+    private int readIntFromBuffer(BlockOfMemory block) {
+        byte[] buffer = block.getBuffer();
+        int offset = block.getIndex();
+        block.setIndex(offset + 4);
+
+        return ((buffer[offset] & 0xFF) << 24) |
+                ((buffer[offset + 1] & 0xFF) << 16) |
+                ((buffer[offset + 2] & 0xFF) << 8) |
+                (buffer[offset + 3] & 0xFF);
+    }
+
+    private void writeIntToBuffer(BlockOfMemory block, int value) {
+        int offset = block.getSize();
+        block.getBuffer()[offset] = (byte) (value >> 24);
+        block.getBuffer()[offset + 1] = (byte) (value >> 16);
+        block.getBuffer()[offset + 2] = (byte) (value >> 8);
+        block.getBuffer()[offset + 3] = (byte) value;
+        block.setSize(offset + 4);
+    }
+
+    public int getReadOperationsData() {
+        return readOperationsData;
+    }
+
+    public int getWriteOperationsData() {
+        return writeOperationsData;
+    }
+
+    public int getReadOperationsBTree() {
+        return readOperationsBtree;
+    }
+
+    public int getWriteOperationsBTree() {
+        return writeOperationsBtree;
+    }
+
+    public void resetStats() {
+        readOperationsData = 0;
+        writeOperationsData = 0;
+        readOperationsBtree = 0;
+        writeOperationsBtree = 0;
     }
 
 }

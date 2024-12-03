@@ -1,32 +1,40 @@
-import memory.DiskFile;
+package Btree;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
-import memory.PageBtreeFile;
-
-class BTreeNode {
+public class BTreeNode {
     private final int t; // Minimum degree (defines the range for number of keys)
     private int nodeID;
     private int parentID;
     private List<Integer> keys; // Keys in this node
     private List<Integer> locations; // Corresponding data locations
+    private List<Integer> childrenIDs;
     private List<BTreeNode> children; // Children of this node
     private BTree tree;
 
-    public BTreeNode(int t, BTree tree) {
-        this.t = t;
+    public BTreeNode(BTree tree) {
+        this.tree = tree;
+        this.t = tree.getT();
         this.nodeID = -1; // assigned later
         this.parentID = -1;
         this.keys = new ArrayList<>();
         this.locations = new ArrayList<>();
         this.children = new ArrayList<>();
+    }
+
+    public BTreeNode (BTree tree, int nodeID, int parentID, List<Integer> keys,
+                      List<Integer> locations, List<Integer> childrenIDs) {
         this.tree = tree;
+        this.t = tree.getT();
+        this.nodeID = nodeID;
+        this.parentID = parentID;
+        this.keys = keys;
+        this.locations = locations;
+        this.childrenIDs = childrenIDs;
     }
 
     public void assignNodeID() {
@@ -68,8 +76,9 @@ class BTreeNode {
 
     public void splitChild(int i) {
         BTreeNode y = children.get(i);
-        BTreeNode z = new BTreeNode(y.t, tree);
+        BTreeNode z = new BTreeNode(tree);
         z.assignNodeID();
+        z.setParentID(nodeID);
 
         // Move t-1 keys and locations to the new node
         for (int j = 0; j < t - 1; j++) {
@@ -150,104 +159,11 @@ class BTreeNode {
         return locations;
     }
 
+    public List<Integer> getChildrenIDs() {
+        return childrenIDs;
+    }
+
     public List<BTreeNode> getChildren() {
         return children;
     }
-
-    public void serializeNode(BufferedWriter writer) throws IOException {
-        List<Integer> childrenIds = new ArrayList<>();
-        for (BTreeNode child : children) {
-            childrenIds.add(child.nodeID);
-        }
-
-        PageBtreeFile page = new PageBtreeFile(
-                nodeID,
-                parentID,
-                new ArrayList<>(keys),
-                new ArrayList<>(locations),
-                childrenIds
-        );
-
-        writer.write(page.serialize());
-        writer.newLine();
-
-        // Recursively serialize all children
-        for (BTreeNode child : children) {
-            child.serializeNode(writer);
-        }
-    }
-}
-
-public class BTree {
-    private BTreeNode root;
-    private final int t;
-    private final int maxSizeOfKeys;
-    private int nodeIDCounter = 0;
-
-
-    public BTree(int t) {
-        this.root = null;
-        this.t = t;
-        this.maxSizeOfKeys = 2 * t - 1;
-    }
-
-    public int getRootID() {
-        return root.getNodeID();
-    }
-
-    public int getNextNodeID() {
-        return nodeIDCounter++;
-    }
-
-    public void insert(int key, int location) {
-        if (root == null) {
-            root = new BTreeNode(t, this);
-            root.getKeys().add(key);
-            root.getLocations().add(location);
-            root.assignNodeID();
-        } else {
-            if (root.getKeys().size() == maxSizeOfKeys) {
-                BTreeNode newRoot = new BTreeNode(t, this);
-                newRoot.assignNodeID();
-                newRoot.getChildren().add(root);
-                root.setParentID(newRoot.getNodeID());
-                newRoot.splitChild(0);
-                int i = 0;
-                if (newRoot.getKeys().get(0) < key) {
-                    i++;
-                }
-                newRoot.getChildren().get(i).insertNonFull(key, location);
-                root = newRoot;
-            } else {
-                root.insertNonFull(key, location);
-            }
-        }
-    }
-
-    public Integer search(int key) {
-        return root == null ? null : root.search(key);
-    }
-
-    public void traverse() {
-        if (root != null) {
-            root.traverse();
-        }
-    }
-
-    public void serialize(DiskFile file) {
-        String filename = file.getFilename();
-
-        if (root == null) {
-            System.out.println("The tree is empty.");
-            return;
-        }
-
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
-            root.serializeNode(writer);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-
 }

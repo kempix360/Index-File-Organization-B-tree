@@ -3,7 +3,6 @@ import java.util.InputMismatchException;
 import java.util.Scanner;
 import data.*;
 import memory.DiskFile;
-import memory.Record;
 
 public class Main {
     public static void main(String[] args) {
@@ -15,6 +14,7 @@ public class Main {
             generateDataToFile(dataFilePath, uniqueKeyGenerator);
 
             DatabaseManager manager = new DatabaseManager(dataFile);
+            manager.deleteDirectory();
             manager.loadRecordsAndSerializeIndex();
 
             System.out.println("\nDatabase is ready. Enter commands (type 'help' for a list of commands):");
@@ -25,7 +25,6 @@ public class Main {
             System.out.println("An error occurred while generating data or creating the database.");
         }
     }
-
 
     public static void generateDataToFile(String inputFile, UniqueKeyGenerator generator) throws IOException {
         Scanner scanner = new Scanner(System.in);

@@ -13,6 +13,7 @@ public class CommandProcessor {
             String command = scanner.nextLine().trim();
 
             if (command.equalsIgnoreCase("exit")) {
+                manager.deleteDirectory();
                 System.out.println("Exiting program. Goodbye!");
                 break;
             } else {

@@ -12,9 +12,9 @@ public class DiskFile {
 
     public DiskFile(String filename) throws IOException {
         this.filename = filename;
-        this.fileInputStream = new FileInputStream(filename);
-        this.fileOutputStream = new FileOutputStream(filename);
-        this.scanner = new Scanner(fileInputStream);
+        this.fileInputStream = null;
+        this.fileOutputStream = null;
+        this.scanner = null;
     }
 
     public String getFilename() {
