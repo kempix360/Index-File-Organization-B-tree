@@ -6,7 +6,7 @@ import memory.DiskFile;
 
 public class Main {
     public static void main(String[] args) {
-        String dataFilePath = "src\\disk_files\\record_page.in";
+        String dataFilePath = "src\\disk_files\\record_page.txt";
         UniqueKeyGenerator uniqueKeyGenerator = new UniqueKeyGenerator();
 
         try {

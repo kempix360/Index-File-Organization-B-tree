@@ -1,5 +1,4 @@
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.List;
 
 import Btree.BTree;
@@ -10,10 +9,10 @@ import memory.*;
 public class DatabaseManager {
     private DiskFile dataFile;
     private BlockOfMemory dataBlock;
-    private RAM ram;
-    private BTree bTree;
+    private final RAM ram;
+    private final BTree bTree;
     private int rootID;
-    private File directory = new File("src\\disk_files\\Btree_files");
+    private final File directory = new File("src\\disk_files\\Btree_files");
 
     public DatabaseManager(DiskFile _dataFile) throws IOException {
         this.dataFile = _dataFile;
@@ -77,10 +76,9 @@ public class DatabaseManager {
         System.out.println("End of serialization.");
     }
 
-    public Record search(int key) {
+    public void search(int key) {
         final String RESET = "\u001B[0m";
         final String YELLOW = "\u001B[33m";
-        final String CYAN = "\u001B[36m";
         final String RED = "\u001B[31m";
         int currentNodeID = rootID;
 
@@ -89,7 +87,7 @@ public class DatabaseManager {
             BTreeNode currentNode = loadNodeFromDisk(currentNodeID);
             if (currentNode == null) {
                 System.out.println("Error: Unable to load node with ID: " + currentNodeID);
-                return new Record(-1, -1, -1, -1);
+                return;
             }
 
             List<Integer> keys = currentNode.getKeys();
@@ -112,14 +110,14 @@ public class DatabaseManager {
                     lineNumber++;
                     System.out.println(YELLOW + "Record found on line " + lineNumber + ": " + record.toString() + RESET);
                     printStats();
-                    return record;
+                    return;
                 }
 
                 if (key < keys.get(i)) {
                     if (children.isEmpty()) {
                         System.out.println(RED + "Record with key " + key + " not found." + RESET);
                         printStats();
-                        return new Record(-1, -1, -1, -1);
+                        return;
                     }
                     currentNodeID = children.get(i);
                     break;
@@ -160,6 +158,76 @@ public class DatabaseManager {
         return ram.readNodeFromBlock(block);
     }
 
+    public void insert(Record record) {
+        // Step 1: Append the record to the data file
+        int location = appendRecordToFile(record);
+
+        if (location == -1) {
+            System.out.println("Error: Failed to append record to file.");
+            return;
+        }
+
+        System.out.println("Record inserted successfully. Key: " + record.getKey() + ", Location: " + location);
+    }
+
+    private int appendRecordToFile(Record record) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(dataFile.getFilename(), true))) {
+            writer.write(record.getFirst() + " " + record.getSecond() + " " + record.getThird() + " " + record.getKey());
+            writer.newLine();
+
+            return getLineNumber();
+        }
+        catch (IOException e) {
+            System.out.println("Error while inserting record to data file: " + e.getMessage());
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    private int getLineNumber() {
+        int lineNumber = 0;
+        try (BufferedReader reader = new BufferedReader(new FileReader(dataFile.getFilename()))) {
+            while (reader.readLine() != null) {
+                lineNumber++;
+            }
+        } catch (IOException e) {
+            System.out.println("Error while reading the file to count lines: " + e.getMessage());
+            e.printStackTrace();
+            return -1;
+        }
+        return lineNumber;
+    }
+
+    public void printTree() {
+        System.out.println("B-Tree structure:");
+        printTreeRecursively(rootID, 0);
+        printStats();
+    }
+
+    private void printTreeRecursively(int nodeID, int level) {
+        BTreeNode node = loadNodeFromDisk(nodeID);
+        if (node == null) {
+            System.out.println("Error: Unable to load node with ID: " + nodeID);
+            return;
+        }
+
+        // indent to show the level of the node
+        String indent = "    ".repeat(level);
+
+        System.out.println(indent + "\u001B[33m" + "- NodeID: " + "\u001B[0m" + node.getNodeID());
+        System.out.println(indent + "  Keys: " + node.getKeys());
+        System.out.println(indent + "  Locations: " + node.getLocations());
+
+        List<Integer> children = node.getChildrenIDs();
+        if (children.isEmpty()) {
+            System.out.println(indent + "  (Leaf node)");
+        } else {
+            System.out.println(indent + "  Children:");
+            for (int childID : children) {
+                printTreeRecursively(childID, level + 1);
+            }
+        }
+    }
 
     public void deleteDirectory() {
         if (directory.exists()) {
@@ -181,7 +249,6 @@ public class DatabaseManager {
 
     public void printStats() {
         final String RESET = "\u001B[0m";
-        final String YELLOW = "\u001B[33m";
         final String CYAN = "\u001B[36m";
         System.out.println(CYAN + "Statistics:" + RESET);
         System.out.println("Data read operations: " + ram.getReadOperationsData());
@@ -207,6 +274,5 @@ public class DatabaseManager {
     public int getRootID() {
         return rootID;
     }
-
 
 }

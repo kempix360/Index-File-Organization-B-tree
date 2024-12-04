@@ -81,34 +81,4 @@ public class BTree {
         }
     }
 
-    public void printTree() {
-        if (root == null) {
-            System.out.println("The B-Tree is empty.");
-            return;
-        }
-
-        System.out.println("B-Tree structure:");
-        List<BTreeNode> nodes = getAllNodes();
-
-        for (BTreeNode node : nodes) {
-            System.out.println("Node ID: " + node.getNodeID() +
-                    ", Parent ID: " + (node.getParentID() == -1 ? "None" : node.getParentID()));
-            System.out.println("Keys: " + node.getKeys());
-            System.out.println("Locations: " + node.getLocations());
-
-            List<BTreeNode> children = node.getChildren();
-            if (children.isEmpty()) {
-                System.out.println("No children.");
-            } else {
-                List<Integer> childIDs = new ArrayList<>();
-                for (BTreeNode child : children) {
-                    childIDs.add(child.getNodeID());
-                }
-                System.out.println("Children IDs: " + childIDs);
-            }
-            System.out.println();
-        }
-    }
-
-
 }

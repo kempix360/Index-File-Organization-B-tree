@@ -40,6 +40,24 @@ public class CommandProcessor {
         }
     }
 
+    public static void handleInsertCommand(DatabaseManager manager, String command) {
+        String[] parts = command.split("\\s+");
+        if (parts.length != 5) {
+            System.out.println("Invalid command format. Use: insert key value");
+            return;
+        }
+
+        try {
+            int r1 = Integer.parseInt(parts[1]);
+            int r2 = Integer.parseInt(parts[2]);
+            int r3 = Integer.parseInt(parts[3]);
+            int key = Integer.parseInt(parts[4]);
+            manager.insert(new Record(r1, r2, r3, key));
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid number format. Use: insert key value");
+        }
+    }
+
     public static void processCommandsFromFile(DatabaseManager manager, String filename) {
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String command;
@@ -58,6 +76,12 @@ public class CommandProcessor {
         if (command.startsWith("search ")) {
             handleSearchCommand(manager, command);
         }
+        else if (command.startsWith("insert")) {
+            handleInsertCommand(manager, command);
+        }
+        else if (command.startsWith("print")) {
+            manager.printTree();
+        }
         else if (command.startsWith("file_commands ")) {
             String filePath = command.substring("file_commands ".length()).trim();
             processCommandsFromFile(manager, filePath);
@@ -73,6 +97,7 @@ public class CommandProcessor {
     public static void displayHelp() {
         System.out.println("\nAvailable commands:");
         System.out.println("  search k             - Search for a record with key k.");
+        System.out.println("  print                - Print the B-Tree structure.");
         System.out.println("  file_commands path   - Execute commands from a file of a given path.");
         System.out.println("  help                 - Display this help message.");
         System.out.println("  exit                 - Exit the program.");
