@@ -25,16 +25,9 @@ public class RAM {
     // DATA
     // --------------------------------------------------------------------------------------------
 
-    public BlockOfMemory loadBlockFromData(DiskFile file, int blockNumber) {
+    public BlockOfMemory loadBlockFromData(DiskFile file) {
         try (BufferedReader reader = new BufferedReader(new FileReader(file.getFilename()))) {
-            int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-            int recordsToSkip = blockNumber * b;
-            int currentLine = 0;
-
             String line;
-            while (currentLine < recordsToSkip && reader.readLine() != null) {
-                currentLine++;
-            }
 
             byte[] buffer = new byte[BlockOfMemory.BUFFER_SIZE];
             int bufferIndex = 0;
@@ -78,7 +71,7 @@ public class RAM {
         }
 
         try {
-            DataOutputStream outputStream = new DataOutputStream(file.getFileOutputStream());
+            DataOutputStream outputStream = new DataOutputStream(new FileOutputStream(file.getFilename()));
             byte[] data = _blockOfMemory.getBuffer();
             int size = _blockOfMemory.getSize();
             int index = _blockOfMemory.getIndex();

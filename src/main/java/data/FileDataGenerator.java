@@ -1,10 +1,10 @@
 package data;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import memory.BlockOfMemory;
+import memory.Record;
+
+import java.io.*;
+
 
 public class FileDataGenerator implements DataGenerator {
     private final String sourceFile;
@@ -14,23 +14,33 @@ public class FileDataGenerator implements DataGenerator {
     }
 
     @Override
-    public void generateData(String filename, int n, UniqueKeyGenerator generator) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(sourceFile));
-             BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
+    public void generateData(String directory, int n, UniqueKeyGenerator generator) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(sourceFile))) {
             String line;
-            int count = 0;
-            if (n == 0) {
-                while ((line = reader.readLine()) != null) {
-                    writer.write(line);
-                    writer.newLine();
+            int recordCount = 0;
+            int blockNumber = 0;
+            int blockSize = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
+
+            while (recordCount < n || n == 0) {
+                String blockFilename = directory + "\\block_" + blockNumber + ".txt";
+
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(blockFilename))) {
+                    int blockRecordCount = 0;
+
+                    while ((line = reader.readLine()) != null && (n == 0 || recordCount < n) && blockRecordCount < blockSize) {
+                        writer.write(line);
+                        writer.newLine();
+                        blockRecordCount++;
+                        recordCount++;
+                    }
+
+                    if (blockRecordCount == 0) {
+                        break; // Exit if no more records to write
+                    }
                 }
-            }
-            else {
-                while ((line = reader.readLine()) != null && count < n) {
-                    writer.write(line);
-                    writer.newLine();
-                    count++;
-                }
+
+                System.out.println("Block " + blockNumber + " written to " + blockFilename);
+                blockNumber++;
             }
         }
     }

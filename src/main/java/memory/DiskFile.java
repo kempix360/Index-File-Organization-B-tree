@@ -8,9 +8,8 @@ public class DiskFile {
     private FileInputStream fileInputStream;
     private FileOutputStream fileOutputStream;
     private Scanner scanner;
-    private int runCount = 0;
 
-    public DiskFile(String filename) throws IOException {
+    public DiskFile(String filename) {
         this.filename = filename;
         this.fileInputStream = null;
         this.fileOutputStream = null;
@@ -46,18 +45,6 @@ public class DiskFile {
     public void resetScanner() {
         if (this.scanner != null) this.scanner.close();
         this.scanner = new Scanner(fileInputStream);
-    }
-
-    public int getRunCount() {
-        return this.runCount;
-    }
-
-    public void incrementRunCount() {
-        this.runCount++;
-    }
-
-    public void decrementRunCount() {
-        this.runCount--;
     }
 
 }

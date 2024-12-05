@@ -8,26 +8,29 @@ import database.BTree;
 import database.BTreeNode;
 import memory.*;
 
+import javax.xml.crypto.Data;
+
 
 public class DatabaseManager {
-    private DiskFile dataFile;
     private BlockOfMemory dataBlock;
     private final RAM ram;
     private BTree bTree;
     private int rootID;
-    private final File directory = new File("src\\disk_files\\Btree_files");
+    private final File dataDirectory;
+    private final File BTreeDirectory;
 
-    public DatabaseManager(DiskFile _dataFile) throws IOException {
-        this.dataFile = _dataFile;
+    public DatabaseManager(String dataDirectory, String BTreeDirectory) throws IOException {
         ram = new RAM();
         bTree = new BTree(3, this);
         rootID = bTree.getRootID();
+        this.dataDirectory = new File(dataDirectory);
+        this.BTreeDirectory = new File(BTreeDirectory);
     }
 
     public void loadRecordsAndSerializeIndex() throws IOException {
         int location = 0;
         int blockNumber = 0;
-        while ((dataBlock = ram.loadBlockFromData(dataFile, blockNumber)) != null) {
+        while ((dataBlock = loadDataBlockFromDisk(blockNumber)) != null) {
             int index = 0;
 
             while (index < dataBlock.getSize()) {
@@ -41,15 +44,6 @@ public class DatabaseManager {
                 index = dataBlock.getIndex();
             }
             blockNumber++;
-        }
-
-        File directory = new File("src\\disk_files\\Btree_files");
-        if (!directory.exists()) {
-            boolean res = directory.mkdirs();
-            if (!res) {
-                System.out.println("Error while creating directory for BTree.");
-                return;
-            }
         }
 
         Map<Integer, BTreeNode> allNodes = bTree.getAllNodes(); // Assuming this now returns a map of nodeID -> BTreeNode
@@ -70,31 +64,34 @@ public class DatabaseManager {
         final String YELLOW = "\u001B[33m";
         final String RED = "\u001B[31m";
 
-        int lineNumber = bTree.search(key);
+        int locationNumber = bTree.search(key);
 
-        if (lineNumber == -1) {
+        if (locationNumber == -1) {
             System.out.println(RED + "Record with key " + key + " not found." + RESET);
             printStats();
             return;
         }
 
         int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-        int blockNumber = lineNumber / b;
+        int blockNumber = locationNumber / b;
 
-        BlockOfMemory block = ram.loadBlockFromData(dataFile, blockNumber);
+        DiskFile dataFile = new DiskFile(dataDirectory.getPath() + "\\block_" + blockNumber + ".txt");
+        BlockOfMemory block = ram.loadBlockFromData(dataFile);
 
-        int index = (lineNumber % b) * Record.RECORD_SIZE;
+        int index = (locationNumber % b) * Record.RECORD_SIZE;
         block.setIndex(index);
 
         Record record = ram.readRecordFromBlock(block);
-        lineNumber++;
-        System.out.println(YELLOW + "Record found on line " + lineNumber + ": " + record.toString() + RESET);
+        int lineNumber = locationNumber % b + 1;
+
+        System.out.println(YELLOW + "Record found on line " + lineNumber +
+                " in block " + blockNumber +  ": " + record.toString() + RESET);
         bTree.clearAllNodes();
         printStats();
     }
 
     public BTreeNode loadNodeFromDisk(int nodeID) {
-        File nodeFile = new File(directory.getPath() + "\\page_" + nodeID + ".txt");
+        File nodeFile = new File(BTreeDirectory.getPath() + "\\page_" + nodeID + ".txt");
 
         if (!nodeFile.exists()) {
             System.out.println("Error: Node file not found for nodeID: " + nodeID);
@@ -102,13 +99,7 @@ public class DatabaseManager {
         }
 
         DiskFile file;
-        try {
-            file = new DiskFile(nodeFile.getPath());
-        } catch (IOException e) {
-            System.out.println("Error while obtaining the disk file: " + nodeFile.getPath() + " " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
+        file = new DiskFile(nodeFile.getPath());
 
         BlockOfMemory block = ram.loadBlockFromBTree(file);
 
@@ -121,7 +112,7 @@ public class DatabaseManager {
     }
 
     public void writeNodeToDisk(BTreeNode node) {
-        File nodeFile = new File(directory.getPath() + "\\page_" + node.getNodeID() + ".txt");
+        File nodeFile = new File(BTreeDirectory.getPath() + "\\page_" + node.getNodeID() + ".txt");
 
         // Check if the file exists, if not, create it
         if (!nodeFile.exists()) {
@@ -140,18 +131,28 @@ public class DatabaseManager {
 
         // Create a DiskFile object for the node file
         DiskFile file;
-        try {
-            file = new DiskFile(nodeFile.getPath());
-        } catch (IOException e) {
-            System.out.println("Error while obtaining DiskFile: " + nodeFile.getPath() + " " + e.getMessage());
-            e.printStackTrace();
-            return;
-        }
+        file = new DiskFile(nodeFile.getPath());
 
         BlockOfMemory block = new BlockOfMemory();
 
         ram.writeNodeToBlock(block, node);
         ram.writeBtreeBlockToDisk(file, block);
+    }
+
+    public BlockOfMemory loadDataBlockFromDisk(int blockNumber) {
+        String path = dataDirectory.getPath() + "\\block_" + blockNumber + ".txt";
+        if (!new File(path).exists()) {
+            return null;
+        }
+
+        DiskFile dataFile = new DiskFile(path);
+
+        BlockOfMemory block = ram.loadBlockFromData(dataFile);
+        if (block == null) {
+            System.out.println("Error: Failed to load block from file.");
+            return null;
+        }
+        return block;
     }
 
     public void writeModifiedNodes(BTree tree) {
@@ -184,38 +185,52 @@ public class DatabaseManager {
         bTree.insert(key, location);
         writeModifiedNodes(bTree);
 
-        System.out.println(YELLOW + "Record inserted successfully. Key: " + key + ", Location: " + location + RESET);
+        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
+        int blockNumber = location / b;
+        int lineNumber = location % b + 1;
+
+        System.out.println(YELLOW + "Record inserted successfully to " + lineNumber +
+                " in block " + blockNumber +". Key: " + key + ", Location: " + location + RESET);
         bTree.clearAllNodes();
         printStats();
     }
 
 
     private int appendRecordToFile(Record record) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(dataFile.getFilename(), true))) {
-            writer.write(record.getFirst() + " " + record.getSecond() + " " + record.getThird() + " " + record.getKey());
-            writer.newLine();
+        int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
+        int location;
 
-            return getLineNumber();
-        }
-        catch (IOException e) {
-            System.out.println("Error while inserting record to data file: " + e.getMessage());
-            e.printStackTrace();
+        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
+        if (block == null) {
+            System.out.println("Error: Failed to load block from file.");
             return -1;
         }
-    }
 
-    private int getLineNumber() {
-        int lineNumber = 0;
-        try (BufferedReader reader = new BufferedReader(new FileReader(dataFile.getFilename()))) {
-            while (reader.readLine() != null) {
-                lineNumber++;
+        int size = block.getSize();
+        if (size == BlockOfMemory.BUFFER_SIZE) {
+            blockNumber++;
+            block = new BlockOfMemory();
+            String path = dataDirectory.getPath() + "\\block_" + blockNumber + ".txt";
+            File dataFile = new File(path);
+
+            try {
+                dataFile.createNewFile();
             }
-        } catch (IOException e) {
-            System.out.println("Error while reading the file to count lines: " + e.getMessage());
-            e.printStackTrace();
-            return -1;
+            catch (IOException e) {
+                System.out.println("Error while creating file: " + e.getMessage());
+                e.printStackTrace();
+                return -1;
+            }
+            size = 0;
         }
-        return lineNumber;
+
+        location = blockNumber * BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE + size / Record.RECORD_SIZE;
+
+        DiskFile dataFile = new DiskFile(dataDirectory.getPath() + "\\block_" + blockNumber + ".txt");
+        ram.writeRecordToBlock(block, record);
+        ram.writeDataBlockToDisk(dataFile, block);
+
+        return location;
     }
 
     public void print() {
@@ -224,22 +239,8 @@ public class DatabaseManager {
         printStats();
     }
 
-    public void deleteDirectory() {
-        if (directory.exists()) {
-            File[] files = directory.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    boolean result = file.delete();
-                    if (!result) {
-                        System.out.println("Error while deleting file: " + file.getPath());
-                    }
-                }
-            }
-            boolean result = directory.delete();
-            if (!result) {
-                System.out.println("Error while deleting directory: " + directory.getPath());
-            }
-        }
+    public int getNumberOfBlocksInDirectory(File directory) {
+        return directory.listFiles().length;
     }
 
     public void printStats() {
@@ -258,16 +259,20 @@ public class DatabaseManager {
         return bTree;
     }
 
-    public DiskFile getDataFile() {
-        return dataFile;
-    }
-
     public RAM getRam() {
         return ram;
     }
 
     public int getRootID() {
         return rootID;
+    }
+
+    public File getDataDirectory() {
+        return dataDirectory;
+    }
+
+    public File getBTreeDirectory() {
+        return BTreeDirectory;
     }
 
 }

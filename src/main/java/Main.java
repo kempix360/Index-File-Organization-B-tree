@@ -1,3 +1,4 @@
+import java.io.File;
 import java.io.IOException;
 import java.util.InputMismatchException;
 import java.util.Scanner;
@@ -7,15 +8,16 @@ import memory.DiskFile;
 
 public class Main {
     public static void main(String[] args) {
-        String dataFilePath = "src\\disk_files\\record_page.txt";
+        String dataDirectory = "src\\disk_files\\data_files";
+        String BTreeDirectory = "src\\disk_files\\Btree_files";
+        clearDirectory(dataDirectory);
+        clearDirectory(BTreeDirectory);
         UniqueKeyGenerator uniqueKeyGenerator = new UniqueKeyGenerator();
 
         try {
-            DiskFile dataFile = new DiskFile(dataFilePath);
-            generateDataToFile(dataFilePath, uniqueKeyGenerator);
+            generateDataToFile(dataDirectory, uniqueKeyGenerator);
 
-            DatabaseManager manager = new DatabaseManager(dataFile);
-            manager.deleteDirectory();
+            DatabaseManager manager = new DatabaseManager(dataDirectory, BTreeDirectory);
             manager.loadRecordsAndSerializeIndex();
 
             System.out.println("\nDatabase is ready. Enter commands (type 'help' for a list of commands):");
@@ -24,6 +26,16 @@ public class Main {
 
         } catch (IOException e) {
             System.out.println("An error occurred while generating data or creating the database.");
+        }
+    }
+
+    public static void clearDirectory(String directory) {
+        File dir = new File(directory);
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                file.delete();
+            }
         }
     }
 
