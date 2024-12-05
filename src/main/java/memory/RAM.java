@@ -1,7 +1,7 @@
 package memory;
 
-import Btree.BTree;
-import Btree.BTreeNode;
+import database.BTree;
+import database.BTreeNode;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -221,7 +221,7 @@ public class RAM {
             return;
         }
 
-        try (DataOutputStream outputStream = new DataOutputStream(file.getFileOutputStream())) {
+        try (DataOutputStream outputStream = new DataOutputStream(new FileOutputStream(file.getFilename()))) {
             StringBuilder sb = new StringBuilder();
             block.setIndex(0);
 
@@ -261,7 +261,7 @@ public class RAM {
         }
     }
 
-    public BTreeNode readNodeFromBlock(BlockOfMemory block) {
+    public BTreeNode readNodeFromBlock(BlockOfMemory block, BTree tree) {
         if (block == null) {
             return null;
         }
@@ -288,7 +288,7 @@ public class RAM {
             children.add(readIntFromBuffer(block));
         }
 
-        return new BTreeNode(new BTree(1), nodeID, parentID, keys, locations, children);
+        return new BTreeNode(tree, nodeID, parentID, keys, locations, children);
     }
 
     public void writeNodeToBlock(BlockOfMemory block, BTreeNode node) {
@@ -299,7 +299,7 @@ public class RAM {
         writeIntToBuffer(block, node.getNodeID());
         writeIntToBuffer(block, node.getParentID());
         writeIntToBuffer(block, node.getKeys().size());
-        writeIntToBuffer(block, node.getChildren().size());
+        writeIntToBuffer(block, node.getChildrenIDs().size());
 
         for (int key : node.getKeys()) {
             writeIntToBuffer(block, key);
@@ -309,8 +309,8 @@ public class RAM {
             writeIntToBuffer(block, location);
         }
 
-        for (BTreeNode child : node.getChildren()) {
-            writeIntToBuffer(block, child.getNodeID());
+        for (int childID : node.getChildrenIDs()) {
+            writeIntToBuffer(block, childID);
         }
     }
 

@@ -1,33 +1,29 @@
-package Btree;
+package database;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class BTreeNode {
-    private final int t; // Minimum degree (defines the range for number of keys)
+    private final int t; // Minimum degree
     private int nodeID;
     private int parentID;
-    private List<Integer> keys; // Keys in this node
+    private List<Integer> keys;       // Keys in the node
     private List<Integer> locations; // Corresponding data locations
-    private List<Integer> childrenIDs;
-    private List<BTreeNode> children; // Children of this node
+    private List<Integer> childrenIDs; // Indices of child nodes
     private BTree tree;
 
     public BTreeNode(BTree tree) {
         this.tree = tree;
         this.t = tree.getT();
-        this.nodeID = -1; // assigned later
+        this.nodeID = -1; // Assigned later
         this.parentID = -1;
         this.keys = new ArrayList<>();
         this.locations = new ArrayList<>();
-        this.children = new ArrayList<>();
+        this.childrenIDs = new ArrayList<>();
     }
 
-    public BTreeNode (BTree tree, int nodeID, int parentID, List<Integer> keys,
-                      List<Integer> locations, List<Integer> childrenIDs) {
+    public BTreeNode(BTree tree, int nodeID, int parentID, List<Integer> keys,
+                     List<Integer> locations, List<Integer> childrenIDs) {
         this.tree = tree;
         this.t = tree.getT();
         this.nodeID = nodeID;
@@ -45,8 +41,8 @@ public class BTreeNode {
         int i = keys.size() - 1;
 
         // If the node is a leaf, insert the key directly
-        if (children.isEmpty()) {
-            keys.add(0);
+        if (childrenIDs.isEmpty()) {
+            keys.add(0); // Placeholder to shift elements
             locations.add(0);
 
             while (i >= 0 && keys.get(i) > key) {
@@ -63,54 +59,47 @@ public class BTreeNode {
             }
             i++;
 
-            // If the child is full, split it
-            if (children.get(i).keys.size() == 2 * t - 1) {
-                splitChild(i);
+            // Load the child node by its ID
+            BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
+            if (child.getKeys().size() == 2 * t - 1) {
+                splitChild(i, child);
                 if (keys.get(i) < key) {
                     i++;
                 }
             }
-            children.get(i).insertNonFull(key, location);
+
+            // Recursive insertion into the appropriate child
+            child.insertNonFull(key, location);
+            tree.writeNodeToMap(child); // Save changes to the child
         }
     }
 
-    public void splitChild(int i) {
-        BTreeNode y = children.get(i);
-        BTreeNode z = new BTreeNode(tree);
-        z.assignNodeID();
-        z.setParentID(nodeID);
+    public void splitChild(int i, BTreeNode child) {
+        BTreeNode newNode = new BTreeNode(tree);
+        newNode.assignNodeID();
+        newNode.setParentID(nodeID);
 
-        // Move t-1 keys and locations to the new node
+        // Move t-1 keys and locations from the child to the new node
         for (int j = 0; j < t - 1; j++) {
-            z.keys.add(y.keys.remove(t));
-            z.locations.add(y.locations.remove(t));
+            newNode.getKeys().add(child.getKeys().remove(t));
+            newNode.getLocations().add(child.getLocations().remove(t));
         }
 
-        // If not a leaf, move t children to the new node
-        if (!y.children.isEmpty()) {
+        // Move t children if the child is not a leaf
+        if (!child.getChildrenIDs().isEmpty()) {
             for (int j = 0; j < t; j++) {
-                z.children.add(y.children.remove(t));
+                newNode.getChildrenIDs().add(child.getChildrenIDs().remove(t));
             }
         }
 
         // Insert the middle key into this node
-        keys.add(i, y.keys.remove(t - 1));
-        locations.add(i, y.locations.remove(t - 1));
-        children.add(i + 1, z);
-    }
+        keys.add(i, child.getKeys().remove(t - 1));
+        locations.add(i, child.getLocations().remove(t - 1));
+        childrenIDs.add(i + 1, newNode.getNodeID());
 
-    public void traverse() {
-        int i;
-        for (i = 0; i < keys.size(); i++) {
-            if (!children.isEmpty()) {
-                children.get(i).traverse();
-            }
-            System.out.println("Key: " + keys.get(i) + ", Location: " + locations.get(i));
-        }
-
-        if (!children.isEmpty()) {
-            children.get(i).traverse();
-        }
+        // Save both nodes to disk
+        tree.writeNodeToMap(child);
+        tree.writeNodeToMap(newNode);
     }
 
     public Integer search(int key) {
@@ -127,20 +116,17 @@ public class BTreeNode {
         }
 
         // If this is a leaf, the key isn't present
-        if (children.isEmpty()) {
-            return null;
+        if (childrenIDs.isEmpty()) {
+            return -1;
         }
 
         // Otherwise, search in the appropriate child
-        return children.get(i).search(key);
+        BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
+        return child.search(key);
     }
 
     public int getNodeID() {
         return nodeID;
-    }
-
-    public void setNodeID(int nodeID) {
-        this.nodeID = nodeID;
     }
 
     public int getParentID() {
@@ -149,6 +135,10 @@ public class BTreeNode {
 
     public void setParentID(int parentID) {
         this.parentID = parentID;
+    }
+
+    public void setBTree(BTree tree) {
+        this.tree = tree;
     }
 
     public List<Integer> getKeys() {
@@ -161,9 +151,5 @@ public class BTreeNode {
 
     public List<Integer> getChildrenIDs() {
         return childrenIDs;
-    }
-
-    public List<BTreeNode> getChildren() {
-        return children;
     }
 }

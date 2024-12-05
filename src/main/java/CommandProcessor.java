@@ -1,4 +1,4 @@
-import memory.Record;
+import database.DatabaseManager;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -52,7 +52,7 @@ public class CommandProcessor {
             int r2 = Integer.parseInt(parts[2]);
             int r3 = Integer.parseInt(parts[3]);
             int key = Integer.parseInt(parts[4]);
-            manager.insert(new Record(r1, r2, r3, key));
+            // manager.insert(new Record(r1, r2, r3, key));
         } catch (NumberFormatException e) {
             System.out.println("Invalid number format. Use: insert key value");
         }
@@ -97,6 +97,7 @@ public class CommandProcessor {
     public static void displayHelp() {
         System.out.println("\nAvailable commands:");
         System.out.println("  search k             - Search for a record with key k.");
+        System.out.println("  insert r1 r2 r3 k    - Insert a record with values r1, r2, r3 and key k.");
         System.out.println("  print                - Print the B-Tree structure.");
         System.out.println("  file_commands path   - Execute commands from a file of a given path.");
         System.out.println("  help                 - Display this help message.");
