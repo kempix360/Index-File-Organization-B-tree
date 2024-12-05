@@ -15,7 +15,6 @@ public class DatabaseManager {
     private final RAM ram;
     private BTree bTree;
     private int rootID;
-    private int numberOfNodes;
     private final File directory = new File("src\\disk_files\\Btree_files");
 
     public DatabaseManager(DiskFile _dataFile) throws IOException {
@@ -59,66 +58,12 @@ public class DatabaseManager {
         }
 
         rootID = bTree.getRootID();
-        numberOfNodes = allNodes.size();
         bTree.clearAllNodes();
+        bTree.clearModifiedNodes();
         ram.resetStats();
 
         System.out.println("End of serialization.");
     }
-
-//    public void search(int key) {
-//        final String RESET = "\u001B[0m";
-//        final String YELLOW = "\u001B[33m";
-//        final String RED = "\u001B[31m";
-//        int currentNodeID = rootID;
-//
-//        while (true) {
-//            // Load the current node from disk
-//            BTreeNode currentNode = loadNodeFromDisk(currentNodeID);
-//            if (currentNode == null) {
-//                System.out.println("Error: Unable to load node with ID: " + currentNodeID);
-//                return;
-//            }
-//
-//            List<Integer> keys = currentNode.getKeys();
-//            List<Integer> locations = currentNode.getLocations();
-//            List<Integer> children = currentNode.getChildrenIDs();
-//
-//            for (int i = 0; i < keys.size(); i++) {
-//                if (key == keys.get(i)) {
-//                    int lineNumber = locations.get(i);
-//
-//                    int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-//                    int blockNumber = lineNumber / b;
-//
-//                    BlockOfMemory block = ram.loadBlockFromData(dataFile, blockNumber);
-//
-//                    int index = (lineNumber % b) * Record.RECORD_SIZE;
-//                    block.setIndex(index);
-//
-//                    Record record = ram.readRecordFromBlock(block);
-//                    lineNumber++;
-//                    System.out.println(YELLOW + "Record found on line " + lineNumber + ": " + record.toString() + RESET);
-//                    printStats();
-//                    return;
-//                }
-//
-//                if (key < keys.get(i)) {
-//                    if (children.isEmpty()) {
-//                        System.out.println(RED + "Record with key " + key + " not found." + RESET);
-//                        printStats();
-//                        return;
-//                    }
-//                    currentNodeID = children.get(i);
-//                    break;
-//                }
-//
-//                if (i == keys.size() - 1) {
-//                    currentNodeID = children.get(children.size() - 1);
-//                }
-//            }
-//        }
-//    }
 
     public void search(int key) {
         final String RESET = "\u001B[0m";
@@ -144,6 +89,7 @@ public class DatabaseManager {
         Record record = ram.readRecordFromBlock(block);
         lineNumber++;
         System.out.println(YELLOW + "Record found on line " + lineNumber + ": " + record.toString() + RESET);
+        bTree.clearAllNodes();
         printStats();
     }
 
@@ -208,7 +154,25 @@ public class DatabaseManager {
         ram.writeBtreeBlockToDisk(file, block);
     }
 
-    public void insert(Record record) throws IOException {
+    public void writeModifiedNodes(BTree tree) {
+        for (BTreeNode node : tree.getModifiedNodes()) {
+            writeNodeToDisk(node); // Existing method to write a node to disk
+        }
+        tree.clearModifiedNodes(); // Clear the list of modified nodes after writing
+    }
+
+
+    public void insert(Record record) {
+        final String RESET = "\u001B[0m";
+        final String YELLOW = "\u001B[33m";
+        final String RED = "\u001B[31m";
+
+        if (bTree.search(record.getKey()) != -1) {
+            System.out.println(RED + "Record with key " + record.getKey() + " already exists in the database." + RESET);
+            bTree.clearAllNodes();
+            return;
+        }
+
         int location = appendRecordToFile(record);
 
         if (location == -1) {
@@ -217,46 +181,12 @@ public class DatabaseManager {
         }
 
         int key = record.getKey();
+        bTree.insert(key, location);
+        writeModifiedNodes(bTree);
 
-        if (rootID == -1) {
-            BTreeNode rootNode = new BTreeNode(bTree);
-            rootNode.getKeys().add(key);
-            rootNode.getLocations().add(location);
-            rootNode.assignNodeID();
-
-            rootID = rootNode.getNodeID();
-            bTree.writeNodeToMap(rootNode);
-            numberOfNodes++;
-            return;
-        }
-
-        BTreeNode rootNode = bTree.loadNodeByID(rootID);
-
-        if (rootNode.getKeys().size() == 2 * bTree.getT() - 1) {
-            BTreeNode newRoot = new BTreeNode(bTree);
-            newRoot.assignNodeID();
-            newRoot.getChildrenIDs().add(rootID);
-            rootNode.setParentID(newRoot.getNodeID());
-
-            newRoot.splitChild(0, rootNode);
-
-            int i = 0;
-            if (newRoot.getKeys().get(0) < key) {
-                i++;
-            }
-            BTreeNode childNode = bTree.loadNodeByID(newRoot.getChildrenIDs().get(i));
-            childNode.insertNonFull(key, location);
-            bTree.writeNodeToMap(childNode);
-
-            rootID = newRoot.getNodeID();
-            bTree.writeNodeToMap(newRoot);
-            numberOfNodes++;
-        } else {
-            rootNode.insertNonFull(key, location);
-            bTree.writeNodeToMap(rootNode);
-        }
-
-        System.out.println("Record inserted successfully. Key: " + key + ", Location: " + location);
+        System.out.println(YELLOW + "Record inserted successfully. Key: " + key + ", Location: " + location + RESET);
+        bTree.clearAllNodes();
+        printStats();
     }
 
 
@@ -288,35 +218,10 @@ public class DatabaseManager {
         return lineNumber;
     }
 
-    public void printTree() {
-        System.out.println("B-Tree structure:");
-        printTreeRecursively(rootID, 0);
+    public void print() {
+        bTree.printTree();
+        bTree.clearAllNodes();
         printStats();
-    }
-
-    private void printTreeRecursively(int nodeID, int level) {
-        BTreeNode node = loadNodeFromDisk(nodeID);
-        if (node == null) {
-            System.out.println("Error: Unable to load node with ID: " + nodeID);
-            return;
-        }
-
-        // indent to show the level of the node
-        String indent = "    ".repeat(level);
-
-        System.out.println(indent + "\u001B[33m" + "- NodeID: " + "\u001B[0m" + node.getNodeID());
-        System.out.println(indent + "  Keys: " + node.getKeys());
-        System.out.println(indent + "  Locations: " + node.getLocations());
-
-        List<Integer> children = node.getChildrenIDs();
-        if (children.isEmpty()) {
-            System.out.println(indent + "  (Leaf node)");
-        } else {
-            System.out.println(indent + "  Children:");
-            for (int childID : children) {
-                printTreeRecursively(childID, level + 1);
-            }
-        }
     }
 
     public void deleteDirectory() {

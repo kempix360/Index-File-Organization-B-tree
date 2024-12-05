@@ -1,4 +1,5 @@
 import database.DatabaseManager;
+import memory.Record;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -43,7 +44,7 @@ public class CommandProcessor {
     public static void handleInsertCommand(DatabaseManager manager, String command) {
         String[] parts = command.split("\\s+");
         if (parts.length != 5) {
-            System.out.println("Invalid command format. Use: insert key value");
+            System.out.println("Invalid command format. Use: insert r1 r2 r3 k");
             return;
         }
 
@@ -52,9 +53,9 @@ public class CommandProcessor {
             int r2 = Integer.parseInt(parts[2]);
             int r3 = Integer.parseInt(parts[3]);
             int key = Integer.parseInt(parts[4]);
-            // manager.insert(new Record(r1, r2, r3, key));
+            manager.insert(new Record(r1, r2, r3, key));
         } catch (NumberFormatException e) {
-            System.out.println("Invalid number format. Use: insert key value");
+            System.out.println("Invalid number format.");
         }
     }
 
@@ -80,7 +81,7 @@ public class CommandProcessor {
             handleInsertCommand(manager, command);
         }
         else if (command.startsWith("print")) {
-            manager.printTree();
+            manager.print();
         }
         else if (command.startsWith("file_commands ")) {
             String filePath = command.substring("file_commands ".length()).trim();

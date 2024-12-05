@@ -155,7 +155,7 @@ public class RAM {
             return;
         }
 
-        int[] record_values = {record.getFirst(), record.getSecond(), record.getThird()};
+        int[] record_values = {record.getFirst(), record.getSecond(), record.getThird(), record.getKey()};
         int values_index = 0;
 
         for (int i = size; i < size + recordSize; i += 4) {

@@ -52,6 +52,7 @@ public class BTreeNode {
             }
             keys.set(i + 1, key);
             locations.set(i + 1, location);
+            tree.addModifiedNode(this);
         } else {
             // Find the child that will have the new key
             while (i >= 0 && keys.get(i) > key) {
@@ -71,6 +72,7 @@ public class BTreeNode {
             // Recursive insertion into the appropriate child
             child.insertNonFull(key, location);
             tree.writeNodeToMap(child); // Save changes to the child
+            tree.addModifiedNode(child);
         }
     }
 
@@ -100,6 +102,10 @@ public class BTreeNode {
         // Save both nodes to disk
         tree.writeNodeToMap(child);
         tree.writeNodeToMap(newNode);
+
+        tree.addModifiedNode(child);
+        tree.addModifiedNode(newNode);
+        tree.addModifiedNode(this);
     }
 
     public Integer search(int key) {
