@@ -17,17 +17,9 @@ public class BTree {
     public BTree(int t, DatabaseManager manager) {
         this.rootID = -1;
         this.t = t;
-        this.maxSizeOfKeys = 2 * t - 1;
+        this.maxSizeOfKeys = 2 * t;
         this.nodes = new HashMap<>();
         this.manager = manager;
-    }
-
-    public BTree(int t) {
-        this.rootID = -1;
-        this.t = t;
-        this.maxSizeOfKeys = 2 * t - 1;
-        this.nodes = new HashMap<>();
-        this.manager = null;
     }
 
     public int getT() {
@@ -40,10 +32,6 @@ public class BTree {
 
     public int getRootID() {
         return rootID;
-    }
-
-    public void setRootID(int rootID) {
-        this.rootID = rootID;
     }
 
     public Map<Integer, BTreeNode> getAllNodes() {
@@ -129,8 +117,25 @@ public class BTree {
         return root.search(key);
     }
 
+    public int getHeight() {
+        if (rootID == -1) {
+            return 0;
+        }
+        return calculateHeight(rootID);
+    }
+
+    private int calculateHeight(int nodeID) {
+        BTreeNode node = loadNodeByID(nodeID);
+        if (node == null || node.getChildrenIDs().isEmpty()) {
+            return 1;
+        }
+        return 1 + calculateHeight(node.getChildrenIDs().get(0));
+    }
+
+
     public void printTree() {
-        System.out.println("B-Tree structure:");
+        System.out.println("Height of the B-Tree: " + getHeight());
+        System.out.println("Structure:");
         printTreeRecursively(rootID, 0);
     }
 

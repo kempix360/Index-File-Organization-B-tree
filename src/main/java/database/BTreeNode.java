@@ -5,6 +5,7 @@ import java.util.List;
 
 public class BTreeNode {
     private final int t; // Minimum degree
+    private final int maxSizeOfKeys;
     private int nodeID;
     private int parentID;
     private List<Integer> keys;       // Keys in the node
@@ -15,6 +16,7 @@ public class BTreeNode {
     public BTreeNode(BTree tree) {
         this.tree = tree;
         this.t = tree.getT();
+        this.maxSizeOfKeys = 2 * t;
         this.nodeID = -1; // Assigned later
         this.parentID = -1;
         this.keys = new ArrayList<>();
@@ -26,6 +28,7 @@ public class BTreeNode {
                      List<Integer> locations, List<Integer> childrenIDs) {
         this.tree = tree;
         this.t = tree.getT();
+        this.maxSizeOfKeys = 2 * t;
         this.nodeID = nodeID;
         this.parentID = parentID;
         this.keys = keys;
@@ -62,7 +65,7 @@ public class BTreeNode {
 
             // Load the child node by its ID
             BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
-            if (child.getKeys().size() == 2 * t - 1) {
+            if (child.getKeys().size() == maxSizeOfKeys) {
                 splitChild(i, child);
                 if (keys.get(i) < key) {
                     i++;
@@ -141,10 +144,6 @@ public class BTreeNode {
 
     public void setParentID(int parentID) {
         this.parentID = parentID;
-    }
-
-    public void setBTree(BTree tree) {
-        this.tree = tree;
     }
 
     public List<Integer> getKeys() {

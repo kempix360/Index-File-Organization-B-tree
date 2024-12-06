@@ -1,3 +1,12 @@
-search 123
-search 50
-search 789
+insert 5 15 25 121535
+insert 5 15 25 121536
+insert 5 15 25 121537
+insert 5 15 25 121538
+insert 5 15 25 121539
+insert 5 15 25 121540
+insert 5 15 25 121541
+insert 5 15 25 121542
+search 121536
+insert 5 15 25 121543
+search 121543
+search 121544

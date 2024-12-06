@@ -21,8 +21,8 @@ public class Main {
             manager.loadRecordsAndSerializeIndex();
 
             System.out.println("\nDatabase is ready. Enter commands (type 'help' for a list of commands):");
-            CommandProcessor commandProcessor = new CommandProcessor();
-            commandProcessor.run(manager);
+            CommandProcessor commandProcessor = new CommandProcessor(manager);
+            commandProcessor.run();
 
         } catch (IOException e) {
             System.out.println("An error occurred while generating data or creating the database.");

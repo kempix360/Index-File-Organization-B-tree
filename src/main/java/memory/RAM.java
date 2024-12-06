@@ -77,15 +77,15 @@ public class RAM {
             int index = _blockOfMemory.getIndex();
 
             for (int i = index; i < size; i += 4) {
-                if (i + 3 < size) {
+                if (i + 4 <= size) {
                     int number = ((data[i] & 0xFF) << 24) |
                             ((data[i + 1] & 0xFF) << 16) |
                             ((data[i + 2] & 0xFF) << 8) |
                             (data[i + 3] & 0xFF);
                     outputStream.writeBytes(number + " ");
 
-                    // After every third integer, write a newline
-                    if ((i / 4 + 1) % 3 == 0) {
+                    // After every forth integer, write a newline
+                    if (((i - index) / 4 + 1) % 4 == 0) {
                         outputStream.writeBytes("\n");
                     }
                 }
