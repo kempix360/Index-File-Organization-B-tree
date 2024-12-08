@@ -8,10 +8,10 @@ public class BTreeNode {
     private final int maxSizeOfKeys;
     private int nodeID;
     private int parentID;
-    private List<Integer> keys;       // Keys in the node
-    private List<Integer> locations; // Corresponding data locations
-    private List<Integer> childrenIDs; // Indices of child nodes
-    private BTree tree;
+    private final List<Integer> keys;       // Keys in the node
+    private final List<Integer> locations; // Corresponding data locations
+    private final List<Integer> childrenIDs; // Indices of child nodes
+    private final BTree tree;
 
     public BTreeNode(BTree tree) {
         this.tree = tree;
@@ -42,6 +42,7 @@ public class BTreeNode {
 
     public boolean insertNode(int key, int location) {
         int i = keys.size() - 1;
+        boolean result;
 
         if (keys.contains(key)) {
             return false;
@@ -78,11 +79,11 @@ public class BTreeNode {
 
             BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
             // Recursive insertion into the appropriate child
-            child.insertNode(key, location);
+            result = child.insertNode(key, location);
             tree.writeNodeToMap(child);
             tree.addModifiedNode(child);
         }
-        return true;
+        return result;
     }
 
     public void split() {
@@ -206,7 +207,7 @@ public class BTreeNode {
         BTreeNode rightSibling = childIndex < parent.getChildrenIDs().size() - 1 ? tree.loadNodeByID(parent.getChildrenIDs().get(childIndex + 1)) : null;
 
         // Try to compensate with left sibling
-        if (leftSibling != null && leftSibling.getKeys().size() < maxSizeOfKeys) {
+        if (leftSibling != null && leftSibling.getKeys().size() < maxSizeOfKeys && leftSibling.getKeys().size() > t) {
             List<Integer> allKeys = new ArrayList<>(leftSibling.getKeys());
             List<Integer> allLocations = new ArrayList<>(leftSibling.getLocations());
 
@@ -242,7 +243,7 @@ public class BTreeNode {
         }
 
         // Try to compensate with right sibling
-        else if (rightSibling != null && rightSibling.getKeys().size() < maxSizeOfKeys) {
+        else if (rightSibling != null && rightSibling.getKeys().size() < maxSizeOfKeys && rightSibling.getKeys().size() > t) {
             List<Integer> allKeys = new ArrayList<>(keys);
             List<Integer> allLocations = new ArrayList<>(locations);
             allKeys.add(parent.getKeys().get(childIndex));  // Add the parent key
@@ -300,9 +301,10 @@ public class BTreeNode {
             } else {
                 // Case 2: The key is in an internal node
                 BTreeNode predecessorChild = tree.loadNodeByID(childrenIDs.get(i));
-                BTreeNode successorChild = tree.loadNodeByID(childrenIDs.get(i + 1));
+                // BTreeNode successorChild = tree.loadNodeByID(childrenIDs.get(i + 1));
 
                 nodeToCheckUnderflow = replaceFromPredecessor(predecessorChild, i);
+                // nodeToCheckUnderflow = replaceFromSuccessor(successorChild, i);
             }
 
             // check for underflow
@@ -402,7 +404,18 @@ public class BTreeNode {
 
     public void merge() {
         if (parentID == -1) {
-            throw new IllegalStateException("Cannot merge root node");
+            if (keys.isEmpty()) {
+                if (childrenIDs.size() == 1) {
+                    BTreeNode child = tree.loadNodeByID(childrenIDs.get(0));
+                    child.setParentID(-1);
+                    tree.setRootID(child.getNodeID());
+                    tree.writeNodeToMap(child);
+                    tree.addModifiedNode(child);
+                }
+                tree.addDeletedNode(this);
+                tree.getModifiedNodes().remove(this);
+            }
+            return;
         }
 
         BTreeNode parent = tree.loadNodeByID(parentID);
@@ -431,6 +444,10 @@ public class BTreeNode {
             parent.getKeys().remove(childIndex - 1);
             parent.getLocations().remove(childIndex - 1);
             parent.getChildrenIDs().remove(childIndex);
+
+            tree.addDeletedNode(this);
+            tree.getModifiedNodes().remove(this);
+            tree.deleteNodeFromMap(this);
 
             // Update tree
             tree.writeNodeToMap(leftSibling);
@@ -464,6 +481,9 @@ public class BTreeNode {
             parent.getLocations().remove(childIndex);
             parent.getChildrenIDs().remove(childIndex + 1);
 
+            tree.addDeletedNode(rightSibling);
+            tree.deleteNodeFromMap(rightSibling);
+
             // Update tree
             tree.writeNodeToMap(this);
             tree.addModifiedNode(this);
@@ -481,8 +501,6 @@ public class BTreeNode {
             throw new IllegalStateException("Cannot merge without valid siblings");
         }
     }
-
-
 
     public int getNodeID() {
         return nodeID;

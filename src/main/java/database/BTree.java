@@ -11,6 +11,7 @@ public class BTree {
     private int nodeIDCounter = 0;
     private final Map<Integer, BTreeNode> nodes;
     private final List<BTreeNode> modifiedNodes = new ArrayList<>();
+    private final List<BTreeNode> deletedNodes = new ArrayList<>();
     private final DatabaseManager manager;
 
     public BTree(int t, DatabaseManager manager) {
@@ -70,8 +71,26 @@ public class BTree {
         modifiedNodes.clear();
     }
 
+    public void addDeletedNode(BTreeNode node) {
+        if (!deletedNodes.contains(node)) {
+            deletedNodes.add(node);
+        }
+    }
+
+    public List<BTreeNode> getDeletedNodes() {
+        return deletedNodes;
+    }
+
+    public void clearDeletedNodes() {
+        deletedNodes.clear();
+    }
+
     public void writeNodeToMap(BTreeNode node) {
         nodes.put(node.getNodeID(), node);
+    }
+
+    public void deleteNodeFromMap(BTreeNode node) {
+        nodes.remove(node.getNodeID());
     }
 
     public boolean insert(int key, int location) {

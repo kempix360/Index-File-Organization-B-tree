@@ -1,1 +1,0 @@
-nodeID= 10 parentID= 1 keysSize= 4 childrenSize= 0 keys=[ 556320505 641090813 671621096 805571010 ] locations=[ 27 25 22 5 ] children=[ ]

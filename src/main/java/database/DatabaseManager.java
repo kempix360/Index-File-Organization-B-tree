@@ -143,12 +143,37 @@ public class DatabaseManager {
         return block;
     }
 
+    public void deleteNodeFromDisk(BTreeNode node) {
+        try {
+            File nodeFile = new File(BTreeDirectory.getPath() + "\\block_" + node.getNodeID() + ".txt");
+            if (nodeFile.exists()) {
+                if (nodeFile.delete()) {
+                    System.out.println("Node file " + node.getNodeID() + " deleted successfully.");
+                } else {
+                    System.out.println("Failed to delete node file " + node.getNodeID() + ".");
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error while deleting node file: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+
     public void writeModifiedNodes(BTree tree) {
         for (BTreeNode node : tree.getModifiedNodes()) {
-            writeNodeToDisk(node); // Existing method to write a node to disk
+            writeNodeToDisk(node);
         }
-        tree.clearModifiedNodes(); // Clear the list of modified nodes after writing
+        tree.clearModifiedNodes();
     }
+
+    public void deleteNodes(BTree tree) {
+        for (BTreeNode node : tree.getDeletedNodes()) {
+            deleteNodeFromDisk(node);
+        }
+        tree.clearDeletedNodes();
+    }
+
 
 
     public void insert(Record record) {
@@ -172,7 +197,6 @@ public class DatabaseManager {
         appendRecordToFile(record, location, block);
 
         bTree.clearAllNodes();
-        bTree.clearModifiedNodes();
         printStats();
     }
 
@@ -282,6 +306,7 @@ public class DatabaseManager {
         ram.writeDataBlockToDisk(dataFile, block);
 
         writeModifiedNodes(bTree);
+        deleteNodes(bTree);
         bTree.clearAllNodes();
         System.out.println(ColorCode.GREEN + "Record with key " + key + " deleted from line " + lineNumber +
                 " in block " + blockNumber + ": " + record.toString() + ColorCode.RESET);
