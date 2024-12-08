@@ -15,7 +15,7 @@ public class DatabaseManager {
 
     public DatabaseManager(String dataDirectory, String BTreeDirectory) throws IOException {
         ram = new RAM();
-        bTree = new BTree(3, this);
+        bTree = new BTree(2, this);
         this.dataDirectory = new File(dataDirectory);
         this.BTreeDirectory = new File(BTreeDirectory);
     }
@@ -163,27 +163,27 @@ public class DatabaseManager {
         if (bTree.search(record.getKey()) != -1) {
             System.out.println(RED + "Record with key " + record.getKey() + " already exists in the database." + RESET);
             bTree.clearAllNodes();
+            ram.resetStats();
             return;
         }
 
-        int location = appendRecordToFile(record);
+        int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
+        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
 
-        if (location == -1) {
-            System.out.println("Error: Failed to append record to file.");
-            return;
-        }
+        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
+        int location = block.getSize() / Record.RECORD_SIZE * blockNumber * b;
+        int lineNumber = location % b + 1;
 
         int key = record.getKey();
         bTree.insert(key, location);
         writeModifiedNodes(bTree);
 
-        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-        int blockNumber = location / b;
-        int lineNumber = location % b + 1;
+
 
         System.out.println(GREEN + "Record inserted successfully to " + lineNumber +
                 " in block " + blockNumber +". Key: " + key + ", Location: " + location + RESET);
         bTree.clearAllNodes();
+        bTree.clearModifiedNodes();
         printStats();
     }
 

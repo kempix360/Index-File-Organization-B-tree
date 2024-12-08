@@ -40,11 +40,12 @@ public class BTreeNode {
         this.nodeID = tree.getNextNodeID();
     }
 
-    public void insertNonFull(int key, int location) {
+    public void insertNode(int key, int location) {
         int i = keys.size() - 1;
 
         // If the node is a leaf, insert the key directly
         if (childrenIDs.isEmpty()) {
+            i = keys.size() - 1;
             keys.add(0); // Placeholder to shift elements
             locations.add(0);
 
@@ -55,6 +56,12 @@ public class BTreeNode {
             }
             keys.set(i + 1, key);
             locations.set(i + 1, location);
+
+            if (keys.size() > maxSizeOfKeys) {
+                split();
+            }
+
+            tree.writeNodeToMap(this);
             tree.addModifiedNode(this);
         } else {
             // Find the child that will have the new key
@@ -65,51 +72,202 @@ public class BTreeNode {
 
             // Load the child node by its ID
             BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
-            if (child.getKeys().size() == maxSizeOfKeys) {
-                splitChild(i, child);
-                if (keys.get(i) < key) {
-                    i++;
-                }
-            }
-
             // Recursive insertion into the appropriate child
-            child.insertNonFull(key, location);
+            child.insertNode(key, location);
             tree.writeNodeToMap(child); // Save changes to the child
             tree.addModifiedNode(child);
         }
     }
 
-    public void splitChild(int i, BTreeNode child) {
-        BTreeNode newNode = new BTreeNode(tree);
-        newNode.assignNodeID();
-        newNode.setParentID(nodeID);
+    public void split() {
+        if (getParentID() == -1) {
+            BTreeNode newRoot = new BTreeNode(tree);
+            newRoot.assignNodeID();
 
-        // Move t-1 keys and locations from the child to the new node
-        for (int j = 0; j < t - 1; j++) {
-            newNode.getKeys().add(child.getKeys().remove(t));
-            newNode.getLocations().add(child.getLocations().remove(t));
+            int mid = t;
+
+            newRoot.getKeys().add(keys.get(mid));
+            newRoot.getLocations().add(locations.get(mid));
+
+            BTreeNode newNode = new BTreeNode(tree);
+            newNode.assignNodeID();
+            newNode.setParentID(newRoot.getNodeID());
+
+            // Find the middle index (t) for splitting
+            int keysSize = keys.size();
+
+            List<Integer> newNodeKeys = new ArrayList<>(getKeys().subList(mid + 1, keysSize));
+            List<Integer> newNodeLocations = new ArrayList<>(getLocations().subList(mid + 1, keysSize));
+
+            newNode.getKeys().addAll(newNodeKeys);
+            newNode.getLocations().addAll(newNodeLocations);
+
+            getKeys().subList(mid, keysSize).clear();
+            getLocations().subList(mid, keysSize).clear();
+            if (!childrenIDs.isEmpty()){
+                List<Integer> movedChildren = new ArrayList<>(childrenIDs.subList(mid + 1, childrenIDs.size()));
+                newNode.getChildrenIDs().addAll(childrenIDs.subList(mid + 1, childrenIDs.size()));
+                getChildrenIDs().subList(mid + 1, childrenIDs.size()).clear();
+
+                for (int childID : movedChildren) {
+                    BTreeNode child = tree.loadNodeByID(childID);
+                    child.setParentID(newNode.getNodeID());
+                    tree.writeNodeToMap(child);
+                    tree.addModifiedNode(child);
+                }
+            }
+
+            newRoot.getChildrenIDs().add(nodeID);
+            newRoot.getChildrenIDs().add(newNode.getNodeID());
+
+            tree.writeNodeToMap(newRoot);
+            tree.writeNodeToMap(newNode);
+            tree.writeNodeToMap(this);
+
+            tree.addModifiedNode(newRoot);
+            tree.addModifiedNode(newNode);
+            tree.addModifiedNode(this);
+
+            setParentID(newRoot.getNodeID());
+            tree.setRootID(newRoot.getNodeID());
+            return;
         }
 
-        // Move t children if the child is not a leaf
-        if (!child.getChildrenIDs().isEmpty()) {
-            for (int j = 0; j < t; j++) {
-                newNode.getChildrenIDs().add(child.getChildrenIDs().remove(t));
+        BTreeNode parent = tree.loadNodeByID(parentID);
+        int i = parent.getChildrenIDs().indexOf(nodeID);
+
+        // Create a new node to store the right half of the keys
+        BTreeNode newNode = new BTreeNode(tree);
+        newNode.assignNodeID();
+        newNode.setParentID(parentID);
+
+        // Find the middle index (t) for splitting
+        int mid = t;
+        int keysSize = getKeys().size();
+
+        // Move the keys, locations and children to the new node
+        List<Integer> newNodeKeys = new ArrayList<>(getKeys().subList(mid + 1, keysSize));
+        List<Integer> newNodeLocations = new ArrayList<>(getLocations().subList(mid + 1, keysSize));
+        newNode.getKeys().addAll(newNodeKeys);
+        newNode.getLocations().addAll(newNodeLocations);
+
+        // Clear the keys, locations, and childrenIDs from the current node
+        getKeys().subList(mid + 1, keysSize).clear();
+        getLocations().subList(mid + 1, keysSize).clear();
+
+        // if the current node has children, move the children to the new node
+        if (!childrenIDs.isEmpty()) {
+            List<Integer> movedChildren = new ArrayList<>(childrenIDs.subList(mid + 1, childrenIDs.size()));
+            newNode.getChildrenIDs().addAll(childrenIDs.subList(mid + 1, childrenIDs.size()));
+            getChildrenIDs().subList(mid + 1, childrenIDs.size()).clear();
+
+            for (int childID : movedChildren) {
+                BTreeNode child = tree.loadNodeByID(childID);
+                child.setParentID(newNode.getNodeID());
+                tree.writeNodeToMap(child);
+                tree.addModifiedNode(child);
             }
         }
 
-        // Insert the middle key into this node
-        keys.add(i, child.getKeys().remove(t - 1));
-        locations.add(i, child.getLocations().remove(t - 1));
-        childrenIDs.add(i + 1, newNode.getNodeID());
+        // Insert the middle key from the child node into the parent node
+        parent.getKeys().add(i, getKeys().remove(mid));
+        parent.getLocations().add(i, getLocations().remove(mid));
+        parent.getChildrenIDs().add(i + 1, newNode.getNodeID());
 
-        // Save both nodes to disk
-        tree.writeNodeToMap(child);
+        // Save both the child and newNode to the disk
+        tree.writeNodeToMap(parent);
         tree.writeNodeToMap(newNode);
+        tree.writeNodeToMap(this);
 
-        tree.addModifiedNode(child);
+        // Mark the nodes as modified
+        tree.addModifiedNode(parent);
         tree.addModifiedNode(newNode);
         tree.addModifiedNode(this);
+
+        // If the parent node exceeds its maximum size after the split, we need to handle it recursively
+        if (parent.getKeys().size() > maxSizeOfKeys) {
+            parent.split();
+        }
     }
+
+
+//    public boolean compensate() {
+//        BTreeNode leftSibling = childIndex > 0 ? tree.loadNodeByID(childrenIDs.get(childIndex - 1)) : null;
+//        BTreeNode rightSibling = childIndex < childrenIDs.size() - 1 ? tree.loadNodeByID(childrenIDs.get(childIndex + 1)) : null;
+//        BTreeNode child = tree.loadNodeByID(childrenIDs.get(childIndex));
+//
+//        // Try to compensate with left sibling
+//        if (leftSibling != null && leftSibling.getKeys().size() < maxSizeOfKeys) {
+//            List<Integer> allKeys = new ArrayList<>(leftSibling.getKeys());
+//            List<Integer> allLocations = new ArrayList<>(leftSibling.getLocations());
+//            allKeys.add(keys.get(childIndex - 1));  // Add the parent key
+//            allLocations.add(locations.get(childIndex - 1));
+//            allKeys.addAll(child.getKeys());
+//            allLocations.addAll(child.getLocations());
+//
+//            int mid = allKeys.size() / 2;
+//
+//            leftSibling.getKeys().clear();
+//            leftSibling.getLocations().clear();
+//            leftSibling.getKeys().addAll(allKeys.subList(0, mid));
+//            leftSibling.getLocations().addAll(allLocations.subList(0, mid));
+//
+//            child.getKeys().clear();
+//            child.getLocations().clear();
+//            child.getKeys().addAll(allKeys.subList(mid + 1, allKeys.size()));
+//            child.getLocations().addAll(allLocations.subList(mid + 1, allLocations.size()));
+//
+//            // The parent gets the middle key
+//            keys.set(childIndex - 1, allKeys.get(mid));
+//            locations.set(childIndex - 1, allLocations.get(mid));
+//
+//            tree.writeNodeToMap(leftSibling);
+//            tree.writeNodeToMap(child);
+//            tree.writeNodeToMap(this);
+//            tree.addModifiedNode(leftSibling);
+//            tree.addModifiedNode(child);
+//            tree.addModifiedNode(this);
+//            return true;
+//        }
+//
+//        // Try to compensate with right sibling
+//        else if (rightSibling != null && rightSibling.getKeys().size() < maxSizeOfKeys) {
+//            List<Integer> allKeys = new ArrayList<>(child.getKeys());
+//            List<Integer> allLocations = new ArrayList<>(child.getLocations());
+//            allKeys.add(keys.get(childIndex));  // Add the parent key
+//            allLocations.add(locations.get(childIndex));
+//            allKeys.addAll(rightSibling.getKeys());
+//            allLocations.addAll(rightSibling.getLocations());
+//
+//            int mid = allKeys.size() / 2;
+//
+//            child.getKeys().clear();
+//            child.getLocations().clear();
+//            child.getKeys().addAll(allKeys.subList(0, mid));
+//            child.getLocations().addAll(allLocations.subList(0, mid));
+//
+//            rightSibling.getKeys().clear();
+//            rightSibling.getLocations().clear();
+//            rightSibling.getKeys().addAll(allKeys.subList(mid + 1, allKeys.size()));
+//            rightSibling.getLocations().addAll(allLocations.subList(mid + 1, allLocations.size()));
+//
+//            // The parent gets the middle key
+//            keys.set(childIndex, allKeys.get(mid));
+//            locations.set(childIndex, allLocations.get(mid));
+//
+//            tree.writeNodeToMap(rightSibling);
+//            tree.writeNodeToMap(child);
+//            tree.writeNodeToMap(this);
+//            tree.addModifiedNode(rightSibling);
+//            tree.addModifiedNode(child);
+//            tree.addModifiedNode(this);
+//            return true;
+//        }
+//
+//        return false;
+//    }
+
+
 
     public Integer search(int key) {
         int i = 0;

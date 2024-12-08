@@ -34,6 +34,10 @@ public class BTree {
         return rootID;
     }
 
+    public void setRootID(int rootID) {
+        this.rootID = rootID;
+    }
+
     public Map<Integer, BTreeNode> getAllNodes() {
         return nodes;
     }
@@ -84,28 +88,7 @@ public class BTree {
             addModifiedNode(root);
         } else {
             BTreeNode root = loadNodeByID(rootID);
-            if (root.getKeys().size() == maxSizeOfKeys) {
-                BTreeNode newRoot = new BTreeNode(this);
-                newRoot.assignNodeID();
-                newRoot.getChildrenIDs().add(rootID);
-                root.setParentID(newRoot.getNodeID());
-                newRoot.splitChild(0, root);
-                int i = 0;
-                if (newRoot.getKeys().get(0) < key) {
-                    i++;
-                }
-                BTreeNode child = loadNodeByID(newRoot.getChildrenIDs().get(i));
-                child.insertNonFull(key, location);
-                writeNodeToMap(child);
-                rootID = newRoot.getNodeID();
-                writeNodeToMap(newRoot);
-                addModifiedNode(root);
-                addModifiedNode(newRoot);
-                addModifiedNode(child);
-            } else {
-                root.insertNonFull(key, location);
-                writeNodeToMap(root);
-            }
+            root.insertNode(key, location);
         }
     }
 
@@ -134,7 +117,7 @@ public class BTree {
 
 
     public void printTree() {
-        System.out.println("Height of the B-Tree: " + getHeight());
+        System.out.println("\u001B[33m" + "Height of the B-Tree: " + "\u001B[0m" + getHeight());
         System.out.println("Structure:");
         printTreeRecursively(rootID, 0);
     }
@@ -163,4 +146,23 @@ public class BTree {
             }
         }
     }
+
+    public void printAllNodes() {
+        System.out.println("\n\u001B[32mContents of all nodes in the B-Tree:\u001B[0m");
+        if (nodes.isEmpty()) {
+            System.out.println("No nodes in the B-Tree.");
+            return;
+        }
+
+        for (Map.Entry<Integer, BTreeNode> entry : nodes.entrySet()) {
+            BTreeNode node = entry.getValue();
+            System.out.println("\u001B[34mNode ID:\u001B[0m " + node.getNodeID());
+            System.out.println("  Keys: " + node.getKeys());
+            System.out.println("  Locations: " + node.getLocations());
+            System.out.println("  Children IDs: " + node.getChildrenIDs());
+            System.out.println("  Parent ID: " + node.getParentID());
+            System.out.println("--------------------------------");
+        }
+    }
+
 }
