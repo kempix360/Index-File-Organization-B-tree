@@ -8,7 +8,6 @@ import java.util.Map;
 public class BTree {
     private int rootID;
     private final int t;
-    private final int maxSizeOfKeys;
     private int nodeIDCounter = 0;
     private final Map<Integer, BTreeNode> nodes;
     private final List<BTreeNode> modifiedNodes = new ArrayList<>();
@@ -17,7 +16,6 @@ public class BTree {
     public BTree(int t, DatabaseManager manager) {
         this.rootID = -1;
         this.t = t;
-        this.maxSizeOfKeys = 2 * t;
         this.nodes = new HashMap<>();
         this.manager = manager;
     }
@@ -93,6 +91,14 @@ public class BTree {
         }
     }
 
+    public int delete(int key) {
+        if (rootID == -1) {
+            return -1;
+        }
+        BTreeNode root = loadNodeByID(rootID);
+        return root.deleteNode(key);
+    }
+
     public Integer search(int key) {
         if (rootID == -1) {
             return -1;
@@ -118,7 +124,7 @@ public class BTree {
 
 
     public void printTree() {
-        System.out.println("\u001B[33m" + "Height of the B-Tree: " + "\u001B[0m" + getHeight());
+        System.out.println(ColorCode.YELLOW + "Height of the B-Tree: " + ColorCode.RESET + getHeight());
         System.out.println("Structure:");
         printTreeRecursively(rootID, 0);
     }
@@ -133,7 +139,7 @@ public class BTree {
         // Indentation to represent tree levels visually
         String indent = "    ".repeat(level);
 
-        System.out.println(indent + "\u001B[33m" + "- NodeID: " + "\u001B[0m" + node.getNodeID());
+        System.out.println(indent + ColorCode.YELLOW + "- NodeID: " + ColorCode.RESET + node.getNodeID());
         System.out.println(indent + "  Keys: " + node.getKeys());
         System.out.println(indent + "  Locations: " + node.getLocations());
 

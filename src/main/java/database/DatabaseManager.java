@@ -52,14 +52,10 @@ public class DatabaseManager {
     }
 
     public void search(int key) {
-        final String RESET = "\u001B[0m";
-        final String GREEN = "\u001B[32m";
-        final String RED = "\u001B[31m";
-
         int locationNumber = bTree.search(key);
 
         if (locationNumber == -1) {
-            System.out.println(RED + "Record with key " + key + " not found." + RESET);
+            System.out.println(ColorCode.RED + "Record with key " + key + " not found." + ColorCode.RESET);
             printStats();
             return;
         }
@@ -76,8 +72,8 @@ public class DatabaseManager {
         Record record = ram.readRecordFromBlock(block);
         int lineNumber = locationNumber % b + 1;
 
-        System.out.println(GREEN + "Record found on line " + lineNumber +
-                " in block " + blockNumber +  ": " + record.toString() + RESET);
+        System.out.println(ColorCode.GREEN + "Record found on line " + lineNumber +
+                " in block " + blockNumber +  ": " + record.toString() + ColorCode.RESET);
         bTree.clearAllNodes();
         printStats();
     }
@@ -156,9 +152,6 @@ public class DatabaseManager {
 
 
     public void insert(Record record) {
-        final String RESET = "\u001B[0m";
-        final String RED = "\u001B[31m";
-
         int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
         BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
 
@@ -168,14 +161,15 @@ public class DatabaseManager {
         int key = record.getKey();
         boolean isInsertSuccessful = bTree.insert(key, location);
         if (!isInsertSuccessful) {
-            System.out.println(RED + "Record with key " + record.getKey() + " already exists in the database." + RESET);
+            System.out.println(ColorCode.RED + "Record with key " + record.getKey() +
+                    " already exists in the database." + ColorCode.RESET);
             bTree.clearAllNodes();
             ram.resetStats();
             return;
         }
 
         writeModifiedNodes(bTree);
-        appendRecordToFile(record, location);
+        appendRecordToFile(record, location, block);
 
         bTree.clearAllNodes();
         bTree.clearModifiedNodes();
@@ -183,16 +177,8 @@ public class DatabaseManager {
     }
 
 
-    private void appendRecordToFile(Record record, int location) {
-        final String RESET = "\u001B[0m";
-        final String GREEN = "\u001B[32m";
+    private void appendRecordToFile(Record record, int location, BlockOfMemory block) {
         int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
-
-        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
-        if (block == null) {
-            System.out.println("Error: Failed to load block from file.");
-            return;
-        }
 
         int size = block.getSize();
         if (size == BlockOfMemory.BUFFER_SIZE) {
@@ -217,20 +203,16 @@ public class DatabaseManager {
 
         int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
         int lineNumber = location % b + 1;
-        System.out.println(GREEN + "Record inserted successfully to line " + lineNumber +
-                " in block " + blockNumber +". Key: " + record.getKey() + ", Location: " + location + RESET);
+        System.out.println(ColorCode.GREEN + "Record inserted successfully to line " + lineNumber +
+                " in block " + blockNumber +". Key: " + record.getKey() + ", Location: " + location + ColorCode.RESET);
     }
 
     public void updateRecord(int key, Record updatedRecord) {
-        final String RESET = "\u001B[0m";
-        final String RED = "\u001B[31m";
-        final String GREEN = "\u001B[32m";
-
         // Search for the record in the B-Tree
         int locationNumber = bTree.search(key);
 
         if (locationNumber == -1) {
-            System.out.println(RED + "Record with key " + key + " not found. Update failed." + RESET);
+            System.out.println(ColorCode.RED + "Record with key " + key + " not found. Update failed." + ColorCode.RESET);
             bTree.clearAllNodes();
             printStats();
             return;
@@ -246,7 +228,7 @@ public class DatabaseManager {
         BlockOfMemory block = ram.loadBlockFromData(dataFile);
 
         if (block == null) {
-            System.out.println(RED + "Failed to load block " + blockNumber + ". Update failed." + RESET);
+            System.out.println(ColorCode.RED + "Failed to load block " + blockNumber + ". Update failed." + ColorCode.RESET);
             bTree.clearAllNodes();
             return;
         }
@@ -257,7 +239,7 @@ public class DatabaseManager {
         Record existingRecord = ram.readRecordFromBlock(block);
 
         if (existingRecord.getKey() != key) {
-            System.out.println(RED + "Key mismatch in block. Update aborted." + RESET);
+            System.out.println(ColorCode.RED + "Key mismatch in block. Update aborted." + ColorCode.RESET);
             bTree.clearAllNodes();
             return;
         }
@@ -268,25 +250,52 @@ public class DatabaseManager {
         block.setSize(size);
         ram.writeDataBlockToDisk(dataFile, block);
 
-        System.out.println(GREEN + "Record with key " + key + " successfully updated." + RESET);
+        System.out.println(ColorCode.GREEN + "Record with key " + key + " successfully updated." + ColorCode.RESET);
 
         bTree.clearAllNodes();
         printStats();
     }
 
+    public void delete(int key){
+        int location = bTree.delete(key);
 
-    public void printDataBlock(int blockNumber) {
-        final String RESET = "\u001B[0m";
-        final String CYAN = "\u001B[36m";
-        final String RED = "\u001B[31m";
-
-        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
-        if (block == null) {
-            System.out.println(RED + "Block " + blockNumber + " not found." + RESET);
+        if (location == -1) {
+            System.out.println(ColorCode.RED + "Record with key " + key + " not found." + ColorCode.RESET);
+            bTree.clearAllNodes();
+            bTree.clearModifiedNodes();
+            printStats();
             return;
         }
 
-        System.out.println(CYAN + "Block " + blockNumber + ":" + RESET);
+        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
+        int blockNumber = location / b;
+
+        DiskFile dataFile = new DiskFile(dataDirectory.getPath() + "\\block_" + blockNumber + ".txt");
+        BlockOfMemory block = ram.loadBlockFromData(dataFile);
+
+        int index = (location % b) * Record.RECORD_SIZE;
+        block.setIndex(index);
+
+        Record record = ram.readRecordFromBlock(block);
+        ram.deleteRecordFromBlock(index, block);
+        int lineNumber = location % b + 1;
+        ram.writeDataBlockToDisk(dataFile, block);
+
+        writeModifiedNodes(bTree);
+        bTree.clearAllNodes();
+        System.out.println(ColorCode.GREEN + "Record with key " + key + " deleted from line " + lineNumber +
+                " in block " + blockNumber + ": " + record.toString() + ColorCode.RESET);
+        printStats();
+    }
+
+    public void printDataBlock(int blockNumber) {
+        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
+        if (block == null) {
+            System.out.println(ColorCode.RED + "Block " + blockNumber + " not found." + ColorCode.RESET);
+            return;
+        }
+
+        System.out.println(ColorCode.CYAN + "Block " + blockNumber + ":" + ColorCode.RESET);
         int size = block.getSize();
         int counter = 0;
         for (int i = 0; i < size; i += Record.RECORD_SIZE) {
@@ -308,9 +317,7 @@ public class DatabaseManager {
     }
 
     public void printStats() {
-        final String RESET = "\u001B[0m";
-        final String CYAN = "\u001B[36m";
-        System.out.println(CYAN + "Statistics:" + RESET);
+        System.out.println(ColorCode.CYAN + "Statistics:" + ColorCode.RESET);
         System.out.println("Data read operations: " + ram.getReadOperationsData());
         System.out.println("Data write operations: " + ram.getWriteOperationsData());
         System.out.println("B-Tree read operations: " + ram.getReadOperationsBTree());

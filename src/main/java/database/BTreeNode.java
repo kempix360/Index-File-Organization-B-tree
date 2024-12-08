@@ -278,7 +278,56 @@ public class BTreeNode {
         return false;
     }
 
+    public int deleteNode(int key) {
+        int i = 0;
+        int result;
 
+        // Find the key or determine the child to search
+        while (i < keys.size() && key > keys.get(i)) {
+            i++;
+        }
+
+        // If the key is found, delete it
+        if (i < keys.size() && keys.get(i) == key) {
+            result = locations.get(i);
+            BTreeNode nodeToCheckUnderflow;
+            if (childrenIDs.isEmpty()) {
+                // Case 1: The key is in a leaf node
+                keys.remove(i);
+                locations.remove(i);
+                tree.writeNodeToMap(this);
+                nodeToCheckUnderflow = this;
+            } else {
+                // Case 2: The key is in an internal node
+                BTreeNode predecessorChild = tree.loadNodeByID(childrenIDs.get(i));
+                BTreeNode successorChild = tree.loadNodeByID(childrenIDs.get(i + 1));
+
+                nodeToCheckUnderflow = replaceFromPredecessor(predecessorChild, i);
+            }
+
+            // check for underflow
+            if (nodeToCheckUnderflow.getKeys().size() < t) {
+                if (!nodeToCheckUnderflow.compensate()){
+                    nodeToCheckUnderflow.merge();
+                }
+            }
+            tree.writeNodeToMap(this);
+            tree.addModifiedNode(this);
+            return result;
+        }
+        else {
+            // key not found
+            if (childrenIDs.isEmpty()) {
+                return -1;
+            }
+
+            // Otherwise, search in the appropriate child
+            BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
+            result = child.deleteNode(key);
+        }
+
+        return result;
+    }
 
     public Integer search(int key) {
         int i = 0;
@@ -302,6 +351,138 @@ public class BTreeNode {
         BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
         return child.search(key);
     }
+
+    private BTreeNode getPredecessor(BTreeNode node) {
+        while (!node.getChildrenIDs().isEmpty()) {
+            node = tree.loadNodeByID(node.getChildrenIDs().get(node.getChildrenIDs().size() - 1));
+        }
+        return node;
+    }
+
+    private BTreeNode getSuccessor(BTreeNode node) {
+        while (!node.getChildrenIDs().isEmpty()) {
+            node = tree.loadNodeByID(node.getChildrenIDs().get(0));
+        }
+        return node;
+    }
+
+    private BTreeNode replaceFromPredecessor(BTreeNode predecessorChild, int i) {
+        BTreeNode predecessor = getPredecessor(predecessorChild);
+        int predecessorKey = predecessor.getKeys().get(predecessor.getKeys().size() - 1);
+        int predecessorLocation = predecessor.getLocations().get(predecessor.getLocations().size() - 1);
+        keys.set(i, predecessorKey);
+        locations.set(i, predecessorLocation);
+        predecessor.getKeys().remove(predecessor.getKeys().size() - 1);
+        predecessor.getLocations().remove(predecessor.getLocations().size() - 1);
+
+        tree.writeNodeToMap(predecessor);
+        tree.writeNodeToMap(this);
+        tree.addModifiedNode(predecessor);
+        tree.addModifiedNode(this);
+
+        return predecessor;
+    }
+
+    private BTreeNode replaceFromSuccessor(BTreeNode successorChild, int i){
+        BTreeNode successor = getSuccessor(successorChild);
+        int successorKey = successor.getKeys().get(0);
+        int successorLocation = successor.getLocations().get(0);
+        keys.set(i, successorKey);
+        locations.set(i, successorLocation);
+        successor.getKeys().remove(0);
+        successor.getLocations().remove(0);
+
+        tree.writeNodeToMap(successor);
+        tree.writeNodeToMap(this);
+        tree.addModifiedNode(successor);
+        tree.addModifiedNode(this);
+
+        return successor;
+    }
+
+    public void merge() {
+        if (parentID == -1) {
+            throw new IllegalStateException("Cannot merge root node");
+        }
+
+        BTreeNode parent = tree.loadNodeByID(parentID);
+        int childIndex = parent.getChildrenIDs().indexOf(nodeID);
+
+        // Determine left and right siblings
+        BTreeNode leftSibling = childIndex > 0 ? tree.loadNodeByID(parent.getChildrenIDs().get(childIndex - 1)) : null;
+        BTreeNode rightSibling = childIndex < parent.getChildrenIDs().size() - 1 ?
+                tree.loadNodeByID(parent.getChildrenIDs().get(childIndex + 1)) : null;
+
+        if (leftSibling != null) {
+            // Merge with left sibling
+            int parentKey = parent.getKeys().get(childIndex - 1);
+            int parentLocation = parent.getLocations().get(childIndex - 1);
+
+            // Move parent key to the left sibling
+            leftSibling.getKeys().add(parentKey);
+            leftSibling.getLocations().add(parentLocation);
+
+            // Move current node's keys, locations, and children to the left sibling
+            leftSibling.getKeys().addAll(keys);
+            leftSibling.getLocations().addAll(locations);
+            leftSibling.getChildrenIDs().addAll(childrenIDs);
+
+            // Remove the parent key and this node reference from the parent
+            parent.getKeys().remove(childIndex - 1);
+            parent.getLocations().remove(childIndex - 1);
+            parent.getChildrenIDs().remove(childIndex);
+
+            // Update tree
+            tree.writeNodeToMap(leftSibling);
+            tree.addModifiedNode(leftSibling);
+
+            tree.writeNodeToMap(parent);
+            tree.addModifiedNode(parent);
+
+            // If parent is underflowing, handle it
+            if (parent.getKeys().size() < t) {
+                if (!parent.compensate()) {
+                    parent.merge();
+                }
+            }
+        } else if (rightSibling != null) {
+            // Merge with right sibling
+            int parentKey = parent.getKeys().get(childIndex);
+            int parentLocation = parent.getLocations().get(childIndex);
+
+            // Move parent key to this node
+            keys.add(parentKey);
+            locations.add(parentLocation);
+
+            // Move right sibling's keys, locations, and children to this node
+            keys.addAll(rightSibling.getKeys());
+            locations.addAll(rightSibling.getLocations());
+            childrenIDs.addAll(rightSibling.getChildrenIDs());
+
+            // Remove the parent key and right sibling reference from the parent
+            parent.getKeys().remove(childIndex);
+            parent.getLocations().remove(childIndex);
+            parent.getChildrenIDs().remove(childIndex + 1);
+
+            // Update tree
+            tree.writeNodeToMap(this);
+            tree.addModifiedNode(this);
+
+            tree.writeNodeToMap(parent);
+            tree.addModifiedNode(parent);
+
+            // If parent is underflowing, handle it
+            if (parent.getKeys().size() < t) {
+                if (!parent.compensate()) {
+                    parent.merge();
+                }
+            }
+        } else {
+            throw new IllegalStateException("Cannot merge without valid siblings");
+        }
+    }
+
+
 
     public int getNodeID() {
         return nodeID;

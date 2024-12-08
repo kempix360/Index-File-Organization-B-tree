@@ -82,6 +82,20 @@ public class CommandProcessor {
         }
     }
 
+    public void handleDeleteCommand(String command) {
+        String[] parts = command.split("\\s+");
+        if (parts.length != 2) {
+            System.out.println("Invalid command format. Use: delete k");
+            return;
+        }
+        try {
+            int key = Integer.parseInt(parts[1]);
+            manager.delete(key);
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid number format.");
+        }
+    }
+
     public void handlePrintDataCommand(String command) {
         String[] parts = command.split("\\s+");
         if (parts.length != 2) {
@@ -120,6 +134,9 @@ public class CommandProcessor {
         else if (command.startsWith("update")) {
             handleUpdateCommand(command);
         }
+        else if (command.startsWith("delete")) {
+            handleDeleteCommand(command);
+        }
         else if (command.startsWith("printData")) {
             handlePrintDataCommand(command);
         }
@@ -140,9 +157,10 @@ public class CommandProcessor {
 
     public void displayHelp() {
         System.out.println("\nAvailable commands:");
-        System.out.println("  search k             - Search for a record with key k.");
+        System.out.println("  search k             - Search for a record of a key k.");
         System.out.println("  insert r1 r2 r3 k    - Insert a record with values r1, r2, r3 and key k.");
-        System.out.println("  update k r1 r2 r3    - Update the record of key k to values r1, r2 and r3.");
+        System.out.println("  update k r1 r2 r3    - Update the record of a key k to values r1, r2 and r3.");
+        System.out.println("  delete k             - Delete record of a key k.");
         System.out.println("  printData num        - Print block of data with number num.");
         System.out.println("  printBTree           - Print the B-Tree structure.");
         System.out.println("  fileCommands path    - Execute commands from a file of a given path.");

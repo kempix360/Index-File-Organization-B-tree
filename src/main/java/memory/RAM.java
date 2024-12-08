@@ -32,24 +32,34 @@ public class RAM {
             byte[] buffer = new byte[BlockOfMemory.BUFFER_SIZE];
             int bufferIndex = 0;
 
-            while ((line = reader.readLine()) != null && bufferIndex < BlockOfMemory.BUFFER_SIZE) {
-                String[] tokens = line.split("\\s+");
-                for (String token : tokens) {
-                    try {
-                        int number = Integer.parseInt(token);
-
-                        buffer[bufferIndex] = (byte) (number >> 24);
-                        buffer[bufferIndex + 1] = (byte) (number >> 16);
-                        buffer[bufferIndex + 2] = (byte) (number >> 8);
-                        buffer[bufferIndex + 3] = (byte) number;
-                        bufferIndex += 4;
-                    } catch (NumberFormatException e) {
-                        e.printStackTrace();
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) {
+                    for (int i = 0; i < Record.RECORD_SIZE; i++) {
+                        buffer[bufferIndex++] = 0;
                     }
+                } else {
+                    String[] tokens = line.split("\\s+");
+                    for (String token : tokens) {
+                        try {
+                            int number = Integer.parseInt(token);
 
-                    if (bufferIndex >= BlockOfMemory.BUFFER_SIZE) {
-                        break;
+                            buffer[bufferIndex] = (byte) (number >> 24);
+                            buffer[bufferIndex + 1] = (byte) (number >> 16);
+                            buffer[bufferIndex + 2] = (byte) (number >> 8);
+                            buffer[bufferIndex + 3] = (byte) number;
+                            bufferIndex += 4;
+                        } catch (NumberFormatException e) {
+                            e.printStackTrace();
+                        }
+
+                        if (bufferIndex >= BlockOfMemory.BUFFER_SIZE) {
+                            break;
+                        }
                     }
+                }
+
+                if (bufferIndex >= BlockOfMemory.BUFFER_SIZE) {
+                    break;
                 }
             }
 
@@ -65,6 +75,7 @@ public class RAM {
         }
     }
 
+
     public void writeDataBlockToDisk(DiskFile file, BlockOfMemory _blockOfMemory) {
         if (_blockOfMemory == null) {
             return;
@@ -74,18 +85,20 @@ public class RAM {
             DataOutputStream outputStream = new DataOutputStream(new FileOutputStream(file.getFilename()));
             byte[] data = _blockOfMemory.getBuffer();
             int size = _blockOfMemory.getSize();
-            int index = _blockOfMemory.getIndex();
 
-            for (int i = index; i < size; i += 4) {
+            int count = 0;
+            for (int i = 0; i < size; i += 4) {
                 if (i + 4 <= size) {
                     int number = ((data[i] & 0xFF) << 24) |
                             ((data[i + 1] & 0xFF) << 16) |
                             ((data[i + 2] & 0xFF) << 8) |
                             (data[i + 3] & 0xFF);
-                    outputStream.writeBytes(number + " ");
-
+                    if (number != 0) {
+                        outputStream.writeBytes(number + " ");
+                    }
                     // After every forth integer, write a newline
-                    if (((i - index) / 4 + 1) % 4 == 0) {
+                    count++;
+                    if (count % 4 == 0) {
                         outputStream.writeBytes("\n");
                     }
                 }
@@ -97,7 +110,6 @@ public class RAM {
             e.printStackTrace();
         }
     }
-
 
     public Record readRecordFromBlock(BlockOfMemory blockOfMemory) {
         if (blockOfMemory == null) {
@@ -164,6 +176,24 @@ public class RAM {
 
     }
 
+    public void deleteRecordFromBlock(int index, BlockOfMemory blockOfMemory) {
+        if (blockOfMemory == null) {
+            return;
+        }
+
+        byte[] data = blockOfMemory.getBuffer();
+        int size = blockOfMemory.getSize();
+        int recordSize = Record.RECORD_SIZE;
+
+        if (index < 0 || (index + recordSize) > BlockOfMemory.BUFFER_SIZE) {
+            return;
+        }
+
+        for (int i = index; i < index + recordSize; i++) {
+            data[i] = 0;
+        }
+    }
+
     // BTREE
     // --------------------------------------------------------------------------------------------
 
@@ -206,8 +236,6 @@ public class RAM {
             return null;
         }
     }
-
-
 
     public void writeBtreeBlockToDisk(DiskFile file, BlockOfMemory block) {
         if (block == null) {
