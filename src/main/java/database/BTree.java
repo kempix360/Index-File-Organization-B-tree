@@ -76,7 +76,7 @@ public class BTree {
         nodes.put(node.getNodeID(), node);
     }
 
-    public void insert(int key, int location) {
+    public boolean insert(int key, int location) {
 
         if (rootID == -1) {
             BTreeNode root = new BTreeNode(this);
@@ -86,9 +86,10 @@ public class BTree {
             rootID = root.getNodeID();
             writeNodeToMap(root);
             addModifiedNode(root);
+            return true;
         } else {
             BTreeNode root = loadNodeByID(rootID);
-            root.insertNode(key, location);
+            return root.insertNode(key, location);
         }
     }
 

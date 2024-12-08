@@ -157,45 +157,41 @@ public class DatabaseManager {
 
     public void insert(Record record) {
         final String RESET = "\u001B[0m";
-        final String GREEN = "\u001B[32m";
         final String RED = "\u001B[31m";
 
-        if (bTree.search(record.getKey()) != -1) {
+        int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
+        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
+
+        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
+        int location = blockNumber * b + block.getSize() / Record.RECORD_SIZE;
+
+        int key = record.getKey();
+        boolean isInsertSuccessful = bTree.insert(key, location);
+        if (!isInsertSuccessful) {
             System.out.println(RED + "Record with key " + record.getKey() + " already exists in the database." + RESET);
             bTree.clearAllNodes();
             ram.resetStats();
             return;
         }
 
-        int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
-        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
-
-        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-        int location = block.getSize() / Record.RECORD_SIZE * blockNumber * b;
-        int lineNumber = location % b + 1;
-
-        int key = record.getKey();
-        bTree.insert(key, location);
         writeModifiedNodes(bTree);
+        appendRecordToFile(record, location);
 
-
-
-        System.out.println(GREEN + "Record inserted successfully to " + lineNumber +
-                " in block " + blockNumber +". Key: " + key + ", Location: " + location + RESET);
         bTree.clearAllNodes();
         bTree.clearModifiedNodes();
         printStats();
     }
 
 
-    private int appendRecordToFile(Record record) {
+    private void appendRecordToFile(Record record, int location) {
+        final String RESET = "\u001B[0m";
+        final String GREEN = "\u001B[32m";
         int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
-        int location;
 
         BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
         if (block == null) {
             System.out.println("Error: Failed to load block from file.");
-            return -1;
+            return;
         }
 
         int size = block.getSize();
@@ -211,18 +207,18 @@ public class DatabaseManager {
             catch (IOException e) {
                 System.out.println("Error while creating file: " + e.getMessage());
                 e.printStackTrace();
-                return -1;
+                return;
             }
-            size = 0;
         }
-
-        location = blockNumber * BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE + size / Record.RECORD_SIZE;
 
         DiskFile dataFile = new DiskFile(dataDirectory.getPath() + "\\block_" + blockNumber + ".txt");
         ram.writeRecordToBlock(block, record);
         ram.writeDataBlockToDisk(dataFile, block);
 
-        return location;
+        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
+        int lineNumber = location % b + 1;
+        System.out.println(GREEN + "Record inserted successfully to line " + lineNumber +
+                " in block " + blockNumber +". Key: " + record.getKey() + ", Location: " + location + RESET);
     }
 
     public void updateRecord(int key, Record updatedRecord) {

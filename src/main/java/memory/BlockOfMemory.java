@@ -1,7 +1,7 @@
 package memory;
 
 public class BlockOfMemory {
-    public static final int BUFFER_SIZE = 4800;
+    public static final int BUFFER_SIZE = 1600;
     private final byte[] buffer;
     private int size; // Actual size of data in the block
     private int index = 0; // Index of the next record to be read
