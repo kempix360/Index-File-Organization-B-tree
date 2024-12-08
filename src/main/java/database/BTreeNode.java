@@ -64,7 +64,7 @@ public class BTreeNode {
 
             // check for overflow
             if (keys.size() > maxSizeOfKeys) {
-                if (!compensate()) split();
+                if (!compensate(true)) split();
             }
 
             tree.writeNodeToMap(this);
@@ -198,7 +198,7 @@ public class BTreeNode {
         }
     }
 
-    public boolean compensate() {
+    public boolean compensate(boolean isInsert) {
         if (parentID == -1) return false;
         BTreeNode parent = tree.loadNodeByID(parentID);
         int childIndex = parent.getChildrenIDs().indexOf(nodeID);
@@ -206,8 +206,13 @@ public class BTreeNode {
         BTreeNode leftSibling = childIndex > 0 ? tree.loadNodeByID(parent.getChildrenIDs().get(childIndex - 1)) : null;
         BTreeNode rightSibling = childIndex < parent.getChildrenIDs().size() - 1 ? tree.loadNodeByID(parent.getChildrenIDs().get(childIndex + 1)) : null;
 
+        boolean conditionLeftSibling = isInsert ? leftSibling != null && leftSibling.getKeys().size() < maxSizeOfKeys
+                : leftSibling != null && leftSibling.getKeys().size() > t;
+        boolean conditionRightSibling = isInsert ? rightSibling != null && rightSibling.getKeys().size() < maxSizeOfKeys
+                : rightSibling != null && rightSibling.getKeys().size() > t;
+
         // Try to compensate with left sibling
-        if (leftSibling != null && leftSibling.getKeys().size() < maxSizeOfKeys && leftSibling.getKeys().size() > t) {
+        if (conditionLeftSibling) {
             List<Integer> allKeys = new ArrayList<>(leftSibling.getKeys());
             List<Integer> allLocations = new ArrayList<>(leftSibling.getLocations());
 
@@ -243,7 +248,7 @@ public class BTreeNode {
         }
 
         // Try to compensate with right sibling
-        else if (rightSibling != null && rightSibling.getKeys().size() < maxSizeOfKeys && rightSibling.getKeys().size() > t) {
+        else if (conditionRightSibling) {
             List<Integer> allKeys = new ArrayList<>(keys);
             List<Integer> allLocations = new ArrayList<>(locations);
             allKeys.add(parent.getKeys().get(childIndex));  // Add the parent key
@@ -309,7 +314,7 @@ public class BTreeNode {
 
             // check for underflow
             if (nodeToCheckUnderflow.getKeys().size() < t) {
-                if (!nodeToCheckUnderflow.compensate()){
+                if (!nodeToCheckUnderflow.compensate(false)){
                     nodeToCheckUnderflow.merge();
                 }
             }
@@ -458,7 +463,7 @@ public class BTreeNode {
 
             // If parent is underflowing, handle it
             if (parent.getKeys().size() < t) {
-                if (!parent.compensate()) {
+                if (!parent.compensate(false)) {
                     parent.merge();
                 }
             }
@@ -493,7 +498,7 @@ public class BTreeNode {
 
             // If parent is underflowing, handle it
             if (parent.getKeys().size() < t) {
-                if (!parent.compensate()) {
+                if (!parent.compensate(false)) {
                     parent.merge();
                 }
             }
