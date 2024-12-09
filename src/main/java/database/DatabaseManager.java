@@ -321,8 +321,11 @@ public class DatabaseManager {
         for (int i = 0; i < size; i += Record.RECORD_SIZE) {
             Record record = ram.readRecordFromBlock(block);
             block.setIndex(i + Record.RECORD_SIZE);
+            if (record.getKey() == 0) {
+                continue;
+            }
             counter++;
-            System.out.println(counter + ". record: " + record.toString());
+            System.out.println(counter + ". record: " + record);
         }
     }
 

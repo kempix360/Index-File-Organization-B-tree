@@ -1,1 +1,0 @@
-nodeID= 12 parentID= 66 keysSize= 2 childrenSize= 0 keys=[ 2043543767 2060027602 ] locations=[ 262 160 ] children=[ ]

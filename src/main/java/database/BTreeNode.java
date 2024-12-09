@@ -67,8 +67,7 @@ public class BTreeNode {
                 if (!compensate(true)) split();
             }
 
-            tree.writeNodeToMap(this);
-            tree.addModifiedNode(this);
+            saveNodes(this);
             return true;
         } else {
             // Find the child that will have the new key
@@ -80,8 +79,7 @@ public class BTreeNode {
             BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
             // Recursive insertion into the appropriate child
             result = child.insertNode(key, location);
-            tree.writeNodeToMap(child);
-            tree.addModifiedNode(child);
+            saveNodes(child);
         }
         return result;
     }
@@ -113,31 +111,17 @@ public class BTreeNode {
             getKeys().subList(mid, keysSize).clear();
             getLocations().subList(mid, keysSize).clear();
             if (!childrenIDs.isEmpty()){
-                List<Integer> movedChildren = new ArrayList<>(childrenIDs.subList(mid + 1, childrenIDs.size()));
                 newNode.getChildrenIDs().addAll(childrenIDs.subList(mid + 1, childrenIDs.size()));
                 getChildrenIDs().subList(mid + 1, childrenIDs.size()).clear();
-
-                for (int childID : movedChildren) {
-                    BTreeNode child = tree.loadNodeByID(childID);
-                    child.setParentID(newNode.getNodeID());
-                    tree.writeNodeToMap(child);
-                    tree.addModifiedNode(child);
-                }
+                updateParentIDs(newNode.getChildrenIDs(), newNode.getNodeID());
             }
 
             newRoot.getChildrenIDs().add(nodeID);
             newRoot.getChildrenIDs().add(newNode.getNodeID());
 
-            tree.writeNodeToMap(newRoot);
-            tree.writeNodeToMap(newNode);
-            tree.writeNodeToMap(this);
-
-            tree.addModifiedNode(newRoot);
-            tree.addModifiedNode(newNode);
-            tree.addModifiedNode(this);
-
             setParentID(newRoot.getNodeID());
             tree.setRootID(newRoot.getNodeID());
+            saveNodes(newRoot, this, newNode);
             return;
         }
 
@@ -165,16 +149,9 @@ public class BTreeNode {
 
         // if the current node has children, move the children to the new node
         if (!childrenIDs.isEmpty()) {
-            List<Integer> movedChildren = new ArrayList<>(childrenIDs.subList(mid + 1, childrenIDs.size()));
             newNode.getChildrenIDs().addAll(childrenIDs.subList(mid + 1, childrenIDs.size()));
             getChildrenIDs().subList(mid + 1, childrenIDs.size()).clear();
-
-            for (int childID : movedChildren) {
-                BTreeNode child = tree.loadNodeByID(childID);
-                child.setParentID(newNode.getNodeID());
-                tree.writeNodeToMap(child);
-                tree.addModifiedNode(child);
-            }
+            updateParentIDs(newNode.getChildrenIDs(), newNode.getNodeID());
         }
 
         // Insert the middle key from the child node into the parent node
@@ -182,15 +159,7 @@ public class BTreeNode {
         parent.getLocations().add(i, getLocations().remove(mid));
         parent.getChildrenIDs().add(i + 1, newNode.getNodeID());
 
-        // Save both the child and newNode to the disk
-        tree.writeNodeToMap(parent);
-        tree.writeNodeToMap(newNode);
-        tree.writeNodeToMap(this);
-
-        // Mark the nodes as modified
-        tree.addModifiedNode(parent);
-        tree.addModifiedNode(newNode);
-        tree.addModifiedNode(this);
+        saveNodes(parent, this, newNode);
 
         // If the parent node exceeds its maximum size after the split, we need to handle it recursively
         if (parent.getKeys().size() > maxSizeOfKeys) {
@@ -234,14 +203,7 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 leftSibling.getChildrenIDs().clear();
                 leftSibling.getChildrenIDs().addAll(allChildren.subList(0, mid + 1));
-
-                for (int childID : leftSibling.getChildrenIDs()) {
-                    BTreeNode child = tree.loadNodeByID(childID);
-                    child.setParentID(leftSibling.getNodeID());
-                    tree.writeNodeToMap(child);
-                    tree.addModifiedNode(child);
-
-                }
+                updateParentIDs(leftSibling.getChildrenIDs(), leftSibling.getNodeID());
             }
 
             keys.clear();
@@ -251,25 +213,14 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 childrenIDs.clear();
                 childrenIDs.addAll(allChildren.subList(mid + 1, allChildren.size()));
-
-                for (int childID : childrenIDs) {
-                    BTreeNode child = tree.loadNodeByID(childID);
-                    child.setParentID(nodeID);
-                    tree.writeNodeToMap(child);
-                    tree.addModifiedNode(child);
-                }
+                updateParentIDs(childrenIDs, nodeID);
             }
 
             // The parent gets the middle key
             parent.getKeys().set(childIndex - 1, allKeys.get(mid));
             parent.getLocations().set(childIndex - 1, allLocations.get(mid));
 
-            tree.writeNodeToMap(leftSibling);
-            tree.writeNodeToMap(parent);
-            tree.writeNodeToMap(this);
-            tree.addModifiedNode(leftSibling);
-            tree.addModifiedNode(parent);
-            tree.addModifiedNode(this);
+            saveNodes(leftSibling, parent, this);
             return true;
         }
 
@@ -294,13 +245,7 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 childrenIDs.clear();
                 childrenIDs.addAll(allChildren.subList(0, mid + 1));
-
-                for (int childID : childrenIDs) {
-                    BTreeNode child = tree.loadNodeByID(childID);
-                    child.setParentID(nodeID);
-                    tree.writeNodeToMap(child);
-                    tree.addModifiedNode(child);
-                }
+                updateParentIDs(childrenIDs, nodeID);
             }
 
             rightSibling.getKeys().clear();
@@ -310,30 +255,36 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 rightSibling.getChildrenIDs().clear();
                 rightSibling.getChildrenIDs().addAll(allChildren.subList(mid + 1, allChildren.size()));
-
-                for (int childID : rightSibling.getChildrenIDs()) {
-                    BTreeNode child = tree.loadNodeByID(childID);
-                    child.setParentID(rightSibling.getNodeID());
-                    tree.writeNodeToMap(child);
-                    tree.addModifiedNode(child);
-                }
+                updateParentIDs(rightSibling.getChildrenIDs(), rightSibling.getNodeID());
             }
 
             // The parent gets the middle key
             parent.getKeys().set(childIndex, allKeys.get(mid));
             parent.getLocations().set(childIndex, allLocations.get(mid));
 
-            tree.writeNodeToMap(rightSibling);
-            tree.writeNodeToMap(parent);
-            tree.writeNodeToMap(this);
-            tree.addModifiedNode(rightSibling);
-            tree.addModifiedNode(parent);
-            tree.addModifiedNode(this);
+            saveNodes(rightSibling, parent, this);
             return true;
         }
 
         return false;
     }
+
+    public void updateParentIDs(List<Integer> childrenIDs, int parentID) {
+        for (int childID : childrenIDs) {
+            BTreeNode child = tree.loadNodeByID(childID);
+            child.setParentID(parentID);
+            tree.writeNodeToMap(child);
+            tree.addModifiedNode(child);
+        }
+    }
+
+    private void saveNodes(BTreeNode... nodes) {
+        for (BTreeNode node : nodes) {
+            tree.writeNodeToMap(node);
+            tree.addModifiedNode(node);
+        }
+    }
+
 
     public int deleteNode(int key) {
         int i = 0;
@@ -369,8 +320,7 @@ public class BTreeNode {
                     nodeToCheckUnderflow.merge();
                 }
             }
-            tree.writeNodeToMap(this);
-            tree.addModifiedNode(this);
+            saveNodes(this);
             return result;
         }
         else {
@@ -433,10 +383,7 @@ public class BTreeNode {
         predecessor.getKeys().remove(predecessor.getKeys().size() - 1);
         predecessor.getLocations().remove(predecessor.getLocations().size() - 1);
 
-        tree.writeNodeToMap(predecessor);
-        tree.writeNodeToMap(this);
-        tree.addModifiedNode(predecessor);
-        tree.addModifiedNode(this);
+        saveNodes(predecessor, this);
 
         return predecessor;
     }
@@ -450,10 +397,7 @@ public class BTreeNode {
         successor.getKeys().remove(0);
         successor.getLocations().remove(0);
 
-        tree.writeNodeToMap(successor);
-        tree.writeNodeToMap(this);
-        tree.addModifiedNode(successor);
-        tree.addModifiedNode(this);
+        saveNodes(successor, this);
 
         return successor;
     }
@@ -465,8 +409,7 @@ public class BTreeNode {
                     BTreeNode child = tree.loadNodeByID(childrenIDs.get(0));
                     child.setParentID(-1);
                     tree.setRootID(child.getNodeID());
-                    tree.writeNodeToMap(child);
-                    tree.addModifiedNode(child);
+                    saveNodes(child);
                 }
                 tree.addDeletedNode(this);
                 tree.getModifiedNodes().remove(this);
@@ -506,11 +449,7 @@ public class BTreeNode {
             tree.deleteNodeFromMap(this);
 
             // Update tree
-            tree.writeNodeToMap(leftSibling);
-            tree.addModifiedNode(leftSibling);
-
-            tree.writeNodeToMap(parent);
-            tree.addModifiedNode(parent);
+            saveNodes(parent, leftSibling);
 
             // If parent is underflowing, handle it
             if (parent.getKeys().size() < t) {
@@ -538,14 +477,11 @@ public class BTreeNode {
             parent.getChildrenIDs().remove(childIndex + 1);
 
             tree.addDeletedNode(rightSibling);
+            tree.getModifiedNodes().remove(this);
             tree.deleteNodeFromMap(rightSibling);
 
             // Update tree
-            tree.writeNodeToMap(this);
-            tree.addModifiedNode(this);
-
-            tree.writeNodeToMap(parent);
-            tree.addModifiedNode(parent);
+            saveNodes(parent, this);
 
             // If parent is underflowing, handle it
             if (parent.getKeys().size() < t) {
