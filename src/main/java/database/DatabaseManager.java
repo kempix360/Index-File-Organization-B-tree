@@ -21,7 +21,6 @@ public class DatabaseManager {
     }
 
     public void loadRecordsAndSerializeIndex() throws IOException {
-        int location = getNextLocation();
         int blockNumber = 0;
         BlockOfMemory dataBlock;
         while ((dataBlock = loadDataBlockFromDisk(blockNumber)) != null) {
@@ -31,8 +30,8 @@ public class DatabaseManager {
                 Record record = ram.readRecordFromBlock(dataBlock);
                 if (record.getFirst() != -1) {
                     int key = record.getKey();
+                    int location = getNextLocation();
                     bTree.insert(key, location);
-                    location = getNextLocation();
                 }
                 dataBlock.setIndex(index + Record.RECORD_SIZE);
                 index = dataBlock.getIndex();
