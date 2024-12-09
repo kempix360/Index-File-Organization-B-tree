@@ -182,7 +182,6 @@ public class RAM {
         }
 
         byte[] data = blockOfMemory.getBuffer();
-        int size = blockOfMemory.getSize();
         int recordSize = Record.RECORD_SIZE;
 
         if (index < 0 || (index + recordSize) > BlockOfMemory.BUFFER_SIZE) {
@@ -192,6 +191,7 @@ public class RAM {
         for (int i = index; i < index + recordSize; i++) {
             data[i] = 0;
         }
+
     }
 
     // BTREE

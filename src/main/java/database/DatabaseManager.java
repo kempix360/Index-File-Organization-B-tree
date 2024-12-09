@@ -7,11 +7,11 @@ import memory.*;
 
 
 public class DatabaseManager {
-    private BlockOfMemory dataBlock;
     private final RAM ram;
-    private BTree bTree;
+    private final BTree bTree;
     private final File dataDirectory;
     private final File BTreeDirectory;
+    private int location = 0;
 
     public DatabaseManager(String dataDirectory, String BTreeDirectory) throws IOException {
         ram = new RAM();
@@ -21,8 +21,9 @@ public class DatabaseManager {
     }
 
     public void loadRecordsAndSerializeIndex() throws IOException {
-        int location = 0;
+        int location = getNextLocation();
         int blockNumber = 0;
+        BlockOfMemory dataBlock;
         while ((dataBlock = loadDataBlockFromDisk(blockNumber)) != null) {
             int index = 0;
 
@@ -31,7 +32,7 @@ public class DatabaseManager {
                 if (record.getFirst() != -1) {
                     int key = record.getKey();
                     bTree.insert(key, location);
-                    location++;
+                    location = getNextLocation();
                 }
                 dataBlock.setIndex(index + Record.RECORD_SIZE);
                 index = dataBlock.getIndex();
@@ -177,11 +178,7 @@ public class DatabaseManager {
 
 
     public void insert(Record record) {
-        int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
-        BlockOfMemory block = loadDataBlockFromDisk(blockNumber);
-
-        int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-        int location = blockNumber * b + block.getSize() / Record.RECORD_SIZE;
+        int location = getNextLocation();
 
         int key = record.getKey();
         boolean isInsertSuccessful = bTree.insert(key, location);
@@ -194,34 +191,33 @@ public class DatabaseManager {
         }
 
         writeModifiedNodes(bTree);
-        appendRecordToFile(record, location, block);
+        appendRecordToFile(record, location);
 
         bTree.clearAllNodes();
         printStats();
     }
 
 
-    private void appendRecordToFile(Record record, int location, BlockOfMemory block) {
-        int blockNumber = getNumberOfBlocksInDirectory(dataDirectory) - 1;
+    private void appendRecordToFile(Record record, int location) {
+        int blockNumber = location / (BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE);
+        String blockPath = dataDirectory.getPath() + "\\block_" + blockNumber + ".txt";
+        File blockFile = new File(blockPath);
+        BlockOfMemory block;
 
-        int size = block.getSize();
-        if (size == BlockOfMemory.BUFFER_SIZE) {
-            blockNumber++;
+        if (!blockFile.exists()) {
             block = new BlockOfMemory();
-            String path = dataDirectory.getPath() + "\\block_" + blockNumber + ".txt";
-            File dataFile = new File(path);
-
             try {
-                dataFile.createNewFile();
-            }
-            catch (IOException e) {
+                blockFile.createNewFile();
+            } catch (IOException e) {
                 System.out.println("Error while creating file: " + e.getMessage());
                 e.printStackTrace();
                 return;
             }
+        } else {
+            block = loadDataBlockFromDisk(blockNumber);
         }
 
-        DiskFile dataFile = new DiskFile(dataDirectory.getPath() + "\\block_" + blockNumber + ".txt");
+        DiskFile dataFile = new DiskFile(blockPath);
         ram.writeRecordToBlock(block, record);
         ram.writeDataBlockToDisk(dataFile, block);
 
@@ -337,8 +333,8 @@ public class DatabaseManager {
         printStats();
     }
 
-    public int getNumberOfBlocksInDirectory(File directory) {
-        return directory.listFiles().length;
+    public int getNextLocation() {
+        return location++;
     }
 
     public void printStats() {
@@ -351,4 +347,11 @@ public class DatabaseManager {
         ram.resetStats();
     }
 
+    public String getDataDirectory() {
+        return dataDirectory.getPath();
+    }
+
+    public String getBTreeDirectory() {
+        return BTreeDirectory.getPath();
+    }
 }

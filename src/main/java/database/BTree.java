@@ -29,10 +29,6 @@ public class BTree {
         return nodeIDCounter++;
     }
 
-    public int getRootID() {
-        return rootID;
-    }
-
     public void setRootID(int rootID) {
         this.rootID = rootID;
     }
@@ -170,24 +166,6 @@ public class BTree {
             for (int childID : children) {
                 printTreeRecursively(childID, level + 1);
             }
-        }
-    }
-
-    public void printAllNodes() {
-        System.out.println("\n\u001B[32mContents of all nodes in the B-Tree:\u001B[0m");
-        if (nodes.isEmpty()) {
-            System.out.println("No nodes in the B-Tree.");
-            return;
-        }
-
-        for (Map.Entry<Integer, BTreeNode> entry : nodes.entrySet()) {
-            BTreeNode node = entry.getValue();
-            System.out.println("\u001B[34mNode ID:\u001B[0m " + node.getNodeID());
-            System.out.println("  Keys: " + node.getKeys());
-            System.out.println("  Locations: " + node.getLocations());
-            System.out.println("  Children IDs: " + node.getChildrenIDs());
-            System.out.println("  Parent ID: " + node.getParentID());
-            System.out.println("--------------------------------");
         }
     }
 

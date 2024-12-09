@@ -20,6 +20,8 @@ public class CommandProcessor {
             String command = scanner.nextLine().trim();
 
             if (command.equalsIgnoreCase("exit")) {
+                Main.clearDirectory(manager.getDataDirectory());
+                Main.clearDirectory(manager.getBTreeDirectory());
                 System.out.println("Exiting program. Goodbye!");
                 break;
             } else {

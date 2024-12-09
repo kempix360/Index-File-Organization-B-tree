@@ -37,11 +37,4 @@ public class BlockOfMemory {
         this.index = index;
     }
 
-    public void clear() {
-        for (int i = 0; i < size; i++) {
-            buffer[i] = 0;
-        }
-        size = 0;
-    }
-
 }
