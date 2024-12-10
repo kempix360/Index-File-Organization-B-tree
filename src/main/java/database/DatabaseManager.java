@@ -228,19 +228,33 @@ public class DatabaseManager {
 
     public void updateRecord(int key, Record updatedRecord) {
         // Search for the record in the B-Tree
-        int locationNumber = bTree.search(key);
+        int location = bTree.delete(key);
 
-        if (locationNumber == -1) {
+        if (location == -1) {
             System.out.println(ColorCode.RED + "Record with key " + key + " not found. Update failed." + ColorCode.RESET);
             bTree.clearAllNodes();
             printStats();
             return;
         }
 
+        writeModifiedNodes(bTree);
+        deleteNodes(bTree);
+
+        boolean isInsertSuccessful = bTree.insert(updatedRecord.getKey(), location);
+        if (!isInsertSuccessful) {
+            System.out.println(ColorCode.RED + "Record with key " + updatedRecord.getKey() +
+                    " already exists in the database." + ColorCode.RESET);
+            bTree.clearAllNodes();
+            ram.resetStats();
+            return;
+        }
+
+        writeModifiedNodes(bTree);
+
         // Calculate block and line details
         int b = BlockOfMemory.BUFFER_SIZE / Record.RECORD_SIZE;
-        int blockNumber = locationNumber / b;
-        int indexInBlock = (locationNumber % b) * Record.RECORD_SIZE;
+        int blockNumber = location / b;
+        int indexInBlock = (location % b) * Record.RECORD_SIZE;
 
         // Load the block containing the record
         DiskFile dataFile = new DiskFile(dataDirectory.getPath() + "\\block_" + blockNumber + ".txt");
@@ -341,10 +355,10 @@ public class DatabaseManager {
 
     public void printStats() {
         System.out.println(ColorCode.CYAN + "Statistics:" + ColorCode.RESET);
-        System.out.println("Data read operations: " + (float)ram.getReadOperationsData());
-        System.out.println("Data write operations: " + (float)ram.getWriteOperationsData());
-        System.out.println("B-Tree read operations: " + (float)ram.getReadOperationsBTree());
-        System.out.println("B-Tree write operations: " + (float)ram.getWriteOperationsBTree());
+        System.out.println("Data read operations: " + ram.getReadOperationsData());
+        System.out.println("Data write operations: " + ram.getWriteOperationsData());
+        System.out.println("B-Tree read operations: " + ram.getReadOperationsBTree());
+        System.out.println("B-Tree write operations: " + ram.getWriteOperationsBTree());
         ram.resetStats();
     }
 

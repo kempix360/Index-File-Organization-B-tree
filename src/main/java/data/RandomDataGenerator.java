@@ -37,6 +37,5 @@ public class RandomDataGenerator implements DataGenerator {
 
             blockNumber++;
         }
-        System.out.println("commands.in file has been written.");
     }
 }

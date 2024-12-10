@@ -76,7 +76,6 @@ public class BTreeNode {
             BTreeNode child = tree.loadNodeByID(childrenIDs.get(i));
             // Recursive insertion into the appropriate child
             result = child.insertNode(key, location);
-            saveNodes(child);
         }
         return result;
     }
@@ -184,6 +183,9 @@ public class BTreeNode {
             List<Integer> allChildren = leftSibling.getChildrenIDs().isEmpty() ?
                     new ArrayList<>() : new ArrayList<>(leftSibling.getChildrenIDs());
 
+            int startSizeThis = childrenIDs.size();
+            int startSizeLeftSibling = leftSibling.getChildrenIDs().size();
+
             allKeys.add(parent.getKeys().get(childIndex - 1));  // Add the parent key
             allLocations.add(parent.getLocations().get(childIndex - 1));
             allChildren.addAll(childrenIDs);
@@ -200,7 +202,10 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 leftSibling.getChildrenIDs().clear();
                 leftSibling.getChildrenIDs().addAll(allChildren.subList(0, mid + 1));
-                updateParentIDs(leftSibling.getChildrenIDs(), leftSibling.getNodeID());
+                if (startSizeLeftSibling < startSizeThis) {
+                    List<Integer> childrenToUpdate = new ArrayList<>(allChildren.subList(startSizeLeftSibling, mid + 1));
+                    updateParentIDs(childrenToUpdate, leftSibling.getNodeID());
+                }
             }
 
             keys.clear();
@@ -210,7 +215,10 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 childrenIDs.clear();
                 childrenIDs.addAll(allChildren.subList(mid + 1, allChildren.size()));
-                updateParentIDs(childrenIDs, nodeID);
+                if (startSizeThis < startSizeLeftSibling) {
+                    List<Integer> childrenToUpdate = new ArrayList<>(allChildren.subList(mid + 1, allChildren.size() - startSizeThis));
+                    updateParentIDs(childrenToUpdate, nodeID);
+                }
             }
 
             // The parent gets the middle key
@@ -227,6 +235,9 @@ public class BTreeNode {
             List<Integer> allLocations = new ArrayList<>(locations);
             List<Integer> allChildren = childrenIDs.isEmpty() ? new ArrayList<>() : new ArrayList<>(childrenIDs);
 
+            int startSizeThis = childrenIDs.size();
+            int startSizeRightSibling = rightSibling.getChildrenIDs().size();
+
             allKeys.add(parent.getKeys().get(childIndex));  // Add the parent key
             allLocations.add(parent.getLocations().get(childIndex));
             allKeys.addAll(rightSibling.getKeys());
@@ -242,7 +253,10 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 childrenIDs.clear();
                 childrenIDs.addAll(allChildren.subList(0, mid + 1));
-                updateParentIDs(childrenIDs, nodeID);
+                if (startSizeThis < startSizeRightSibling) {
+                    List<Integer> childrenToUpdate = new ArrayList<>(allChildren.subList(startSizeThis, mid + 1));
+                    updateParentIDs(childrenToUpdate, nodeID);
+                }
             }
 
             rightSibling.getKeys().clear();
@@ -252,7 +266,10 @@ public class BTreeNode {
             if (!allChildren.isEmpty()){
                 rightSibling.getChildrenIDs().clear();
                 rightSibling.getChildrenIDs().addAll(allChildren.subList(mid + 1, allChildren.size()));
-                updateParentIDs(rightSibling.getChildrenIDs(), rightSibling.getNodeID());
+                if (startSizeRightSibling < startSizeThis) {
+                    List<Integer> childrenToUpdate = new ArrayList<>(allChildren.subList(mid + 1, allChildren.size() - startSizeRightSibling));
+                    updateParentIDs(childrenToUpdate, rightSibling.getNodeID());
+                }
             }
 
             // The parent gets the middle key
@@ -299,7 +316,6 @@ public class BTreeNode {
                 // Case 1: The key is in a leaf node
                 keys.remove(i);
                 locations.remove(i);
-                tree.writeNodeToMap(this);
                 saveNodes(this);
                 nodeToCheckUnderflow = this;
             } else {
