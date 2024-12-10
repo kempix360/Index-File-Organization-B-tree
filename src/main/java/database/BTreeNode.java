@@ -4,8 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BTreeNode {
-    private final int t; // Minimum degree
-    private final int maxSizeOfKeys;
+    private final int d; // Minimum degree
     private int nodeID;
     private int parentID;
     private final List<Integer> keys;       // Keys in the node
@@ -15,8 +14,7 @@ public class BTreeNode {
 
     public BTreeNode(BTree tree) {
         this.tree = tree;
-        this.t = tree.getT();
-        this.maxSizeOfKeys = 2 * t;
+        this.d = tree.getD();
         this.nodeID = -1; // Assigned later
         this.parentID = -1;
         this.keys = new ArrayList<>();
@@ -27,8 +25,7 @@ public class BTreeNode {
     public BTreeNode(BTree tree, int nodeID, int parentID, List<Integer> keys,
                      List<Integer> locations, List<Integer> childrenIDs) {
         this.tree = tree;
-        this.t = tree.getT();
-        this.maxSizeOfKeys = 2 * t;
+        this.d = tree.getD();
         this.nodeID = nodeID;
         this.parentID = parentID;
         this.keys = keys;
@@ -63,7 +60,7 @@ public class BTreeNode {
             locations.set(i + 1, location);
 
             // check for overflow
-            if (keys.size() > maxSizeOfKeys) {
+            if (keys.size() > 2*d) {
                 if (!compensate(true)) split();
             }
 
@@ -90,7 +87,7 @@ public class BTreeNode {
             BTreeNode newRoot = new BTreeNode(tree);
             newRoot.assignNodeID();
 
-            int mid = t;
+            int mid = d;
 
             newRoot.getKeys().add(keys.get(mid));
             newRoot.getLocations().add(locations.get(mid));
@@ -134,7 +131,7 @@ public class BTreeNode {
         newNode.setParentID(parentID);
 
         // Find the middle index (t) for splitting
-        int mid = t;
+        int mid = d;
         int keysSize = getKeys().size();
 
         // Move the keys, locations and children to the new node
@@ -162,7 +159,7 @@ public class BTreeNode {
         saveNodes(parent, this, newNode);
 
         // If the parent node exceeds its maximum size after the split, we need to handle it recursively
-        if (parent.getKeys().size() > maxSizeOfKeys) {
+        if (parent.getKeys().size() > 2*d) {
             if (!parent.compensate(true)) parent.split();
         }
     }
@@ -175,10 +172,10 @@ public class BTreeNode {
         BTreeNode leftSibling = childIndex > 0 ? tree.loadNodeByID(parent.getChildrenIDs().get(childIndex - 1)) : null;
         BTreeNode rightSibling = childIndex < parent.getChildrenIDs().size() - 1 ? tree.loadNodeByID(parent.getChildrenIDs().get(childIndex + 1)) : null;
 
-        boolean conditionLeftSibling = isInsert ? leftSibling != null && leftSibling.getKeys().size() < maxSizeOfKeys
-                : leftSibling != null && leftSibling.getKeys().size() > t;
-        boolean conditionRightSibling = isInsert ? rightSibling != null && rightSibling.getKeys().size() < maxSizeOfKeys
-                : rightSibling != null && rightSibling.getKeys().size() > t;
+        boolean conditionLeftSibling = isInsert ? leftSibling != null && leftSibling.getKeys().size() < 2*d
+                : leftSibling != null && leftSibling.getKeys().size() > d;
+        boolean conditionRightSibling = isInsert ? rightSibling != null && rightSibling.getKeys().size() < 2*d
+                : rightSibling != null && rightSibling.getKeys().size() > d;
 
         // Try to compensate with left sibling
         if (conditionLeftSibling) {
@@ -273,8 +270,7 @@ public class BTreeNode {
         for (int childID : childrenIDs) {
             BTreeNode child = tree.loadNodeByID(childID);
             child.setParentID(parentID);
-            tree.writeNodeToMap(child);
-            tree.addModifiedNode(child);
+            saveNodes(child);
         }
     }
 
@@ -304,6 +300,7 @@ public class BTreeNode {
                 keys.remove(i);
                 locations.remove(i);
                 tree.writeNodeToMap(this);
+                saveNodes(this);
                 nodeToCheckUnderflow = this;
             } else {
                 // Case 2: The key is in an internal node
@@ -315,12 +312,11 @@ public class BTreeNode {
             }
 
             // check for underflow
-            if (nodeToCheckUnderflow.getKeys().size() < t) {
+            if (nodeToCheckUnderflow.getKeys().size() < d) {
                 if (!nodeToCheckUnderflow.compensate(false)){
                     nodeToCheckUnderflow.merge();
                 }
             }
-            saveNodes(this);
             return result;
         }
         else {
@@ -452,7 +448,7 @@ public class BTreeNode {
             saveNodes(parent, leftSibling);
 
             // If parent is underflowing, handle it
-            if (parent.getKeys().size() < t) {
+            if (parent.getKeys().size() < d) {
                 if (!parent.compensate(false)) {
                     parent.merge();
                 }
@@ -484,7 +480,7 @@ public class BTreeNode {
             saveNodes(parent, this);
 
             // If parent is underflowing, handle it
-            if (parent.getKeys().size() < t) {
+            if (parent.getKeys().size() < d) {
                 if (!parent.compensate(false)) {
                     parent.merge();
                 }

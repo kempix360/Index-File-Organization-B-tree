@@ -6,7 +6,9 @@ import memory.Record;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 public class RandomDataGenerator implements DataGenerator {
 
@@ -35,5 +37,6 @@ public class RandomDataGenerator implements DataGenerator {
 
             blockNumber++;
         }
+        System.out.println("commands.in file has been written.");
     }
 }

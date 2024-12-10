@@ -341,11 +341,10 @@ public class DatabaseManager {
 
     public void printStats() {
         System.out.println(ColorCode.CYAN + "Statistics:" + ColorCode.RESET);
-        System.out.println("Data read operations: " + ram.getReadOperationsData());
-        System.out.println("Data write operations: " + ram.getWriteOperationsData());
-        System.out.println("B-Tree read operations: " + ram.getReadOperationsBTree());
-        System.out.println("B-Tree write operations: " + ram.getWriteOperationsBTree());
-
+        System.out.println("Data read operations: " + (float)ram.getReadOperationsData());
+        System.out.println("Data write operations: " + (float)ram.getWriteOperationsData());
+        System.out.println("B-Tree read operations: " + (float)ram.getReadOperationsBTree());
+        System.out.println("B-Tree write operations: " + (float)ram.getWriteOperationsBTree());
         ram.resetStats();
     }
 

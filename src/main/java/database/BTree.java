@@ -7,22 +7,22 @@ import java.util.Map;
 
 public class BTree {
     private int rootID;
-    private final int t;
+    private final int d;
     private int nodeIDCounter = 0;
     private final Map<Integer, BTreeNode> nodes;
     private final List<BTreeNode> modifiedNodes = new ArrayList<>();
     private final List<BTreeNode> deletedNodes = new ArrayList<>();
     private final DatabaseManager manager;
 
-    public BTree(int t, DatabaseManager manager) {
+    public BTree(int d, DatabaseManager manager) {
         this.rootID = -1;
-        this.t = t;
+        this.d = d;
         this.nodes = new HashMap<>();
         this.manager = manager;
     }
 
-    public int getT() {
-        return t;
+    public int getD() {
+        return d;
     }
 
     public int getNextNodeID() {
@@ -111,6 +111,11 @@ public class BTree {
             return -1;
         }
         BTreeNode root = loadNodeByID(rootID);
+        if (root.getKeys().size() == 1 && root.getChildrenIDs().isEmpty()) {
+            addDeletedNode(root);
+            setRootID(-1);
+            return root.getLocations().remove(0);
+        }
         return root.deleteNode(key);
     }
 
@@ -139,9 +144,14 @@ public class BTree {
 
 
     public void printTree() {
-        System.out.println(ColorCode.YELLOW + "Height of the B-Tree: " + ColorCode.RESET + getHeight());
+        if (rootID == -1) {
+            System.out.println("B-Tree is empty.");
+            return;
+        }
+
         System.out.println("Structure:");
         printTreeRecursively(rootID, 0);
+        System.out.println(ColorCode.YELLOW + "Height of the B-Tree: " + ColorCode.RESET + getHeight());
     }
 
     private void printTreeRecursively(int nodeID, int level) {
